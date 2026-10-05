@@ -18,7 +18,7 @@ def play(level, script, after, down=False, color=levels.BLUE):
     said = []
     with mock.patch.object(hold_release, "say", lambda *a: said.append(" ".join(str(x) for x in a))):
         g = hold_release.Game(level, color); g.down = down; g.set_level(level, 0.0)
-        turn = g.o.turn; evs = sorted((turn + dt, p) for dt, p in script); sounds = []; frames = []; i = 0
+        turn = g.phase.o.turn; evs = sorted((turn + dt, p) for dt, p in script); sounds = []; frames = []; i = 0
         for k in range(int((turn + max([dt for dt, _ in script], default=0.0) + after) / TICK) + 1):
             now = k * TICK
             while i < len(evs) and evs[i][0] <= now: g.button(evs[i][0], levels.BUTTON, evs[i][1]); i += 1
@@ -139,9 +139,15 @@ class Level2(unittest.TestCase):
         g, sounds, said, frame = play(2, [], 30.0)
         self.assertEqual([(t, k) for t, k in sounds if k == "nudge"], [(12.01, "nudge")])
 
-    def test_nudge_counts_from_the_let_go(self):
-        g, sounds, said, frame = play(2, [(0.0, True), (1.0, False)], 14.0)
-        self.assertEqual([(t, k) for t, k in sounds if k == "nudge"], [(13.0, "nudge")])
+    def test_nudge_counts_from_the_pulse_after_an_early_miss(self):
+        """let go at 1.0 s: the button pulses again 2.1 s later, and the nudge is 12 s after that"""
+        g, sounds, said, frame = play(2, [(0.0, True), (1.0, False)], 16.0)
+        self.assertEqual([(t, k) for t, k in sounds if k == "nudge"], [(15.11, "nudge")])
+
+    def test_nudge_counts_from_the_pulse_after_a_late_miss(self):
+        """held to the end, the try over at 3.1 s, let go after: the pulse at 5.2 s, the nudge 12 s after"""
+        g, sounds, said, frame = play(2, [(0.0, True), (3.5, False)], 16.0)
+        self.assertEqual([(t, k) for t, k in sounds if k == "nudge"], [(17.21, "nudge")])
 
 class Level1(unittest.TestCase):
     """stop-and-go: a 2-button target on 6-5; letting go short stops the light and the next
@@ -183,7 +189,7 @@ class Level5(unittest.TestCase):
         g, sounds, said, frame = play(5, [(0.0, True), (2.6, False)], 2.0)
         self.assertEqual(keys(sounds), ["hit", "done"])
         self.assertIn("level 5: back to 1 after this try", said)
-        self.assertEqual((g.level, g.line), (1, "again"))
+        self.assertEqual((g.level, g.phase.line), (1, "again"))
 
     def test_press_on_the_switch(self):
         """a press that comes before the tick that switches the level: the next level's opening"""

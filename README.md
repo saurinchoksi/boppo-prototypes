@@ -6,7 +6,7 @@ buttons. Each game runs on a computer and plays on the tablet over Wi-Fi, throug
 
 | Game | |
 |---|---|
-| [Hold, Release](hold-release/) | A light moves only while you hold the button. Letting go on the target is the game. Five levels, ages 4+. |
+| [Hold, Release](hold-release/) | A light moves only while you hold the button. Letting go on the target is the game. Five levels, ages 4 to 7. |
 
 ## What you need
 

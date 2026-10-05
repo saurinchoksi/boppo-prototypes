@@ -78,115 +78,146 @@ def say(*a):
     if LOG:
         with open(LOG, "a") as f: f.write(line + "\n")
 
+class Cues:
+    """a phase's sounds: its cues, (at, key) from its start, each queued in out as its time comes;
+    and its nudge, once a wait, when no press has come for NUDGE_S"""
+    def __init__(self, out, start, cues, nudge, quiet):
+        self.out, self.start, self.cues, self.nudge, self.cue = out, start, cues, nudge, 0; self.heard(quiet)
+    def heard(self, t):
+        """a press, or the turn: the nudge counts from here"""
+        self.quiet = t; self.nudged = False
+    def play(self, now):
+        while self.cue < len(self.cues) and self.cues[self.cue][0] <= now - self.start:
+            self.out.append(self.cues[self.cue][1]); self.cue += 1
+    def wait(self, now):
+        """waiting for a press: the nudge, once NUDGE_S has gone by without one"""
+        if not self.nudged and now - self.quiet > NUDGE_S: self.nudged = True; self.out.append(self.nudge)
+
+class Standby:
+    """the dark board before a session but button 4, dim white: an adult holds it READY_S to start
+    the pick, and it fills white"""
+    def __init__(self, game): self.game = game; self.t_ready = None
+    def button(self, t, idx, pressed):
+        if idx == READY: self.t_ready = t if pressed else None   # let go early: nothing
+    def update(self, now):                              # held long enough: the pick
+        if self.t_ready is not None and now - self.t_ready >= READY_S: say("ready: the pick"); self.game.start_pick(now)
+    def render(self, now):
+        L = [levels.OFF] * 40; k = levels.clamp((now - self.t_ready) / READY_S) if self.t_ready is not None else 0.0
+        L[READY * 4:READY * 4 + 4] = [levels.scale(levels.WHITE, READY_LO + (1 - READY_LO) * k)] * 4
+        return L
+
+class Pick:
+    """the pick, once a session: the five colors light on the top row as their names play, and a
+    press on a lit one chooses it; it pours to the player's button, then the level the session
+    started on"""
+    def __init__(self, game, now):
+        self.game, self.t_pick, self.chose = game, now, None
+        self.p = levels.pick(LINE_S["pick"], [LINE_S[f"name_{c}"] for c in levels.PICK])
+        self.cues = Cues(game.out, now, self.p.cues, "pick_nudge", now + self.p.ready)   # the nudge counts from all five lit
+
+    def button(self, t, idx, pressed):
+        """one of the five on the top row, once lit, names still coming"""
+        if not pressed or self.chose is not None: return
+        self.cues.heard(t)
+        if idx < len(levels.PICK) and t - self.t_pick >= self.p.names[idx]:
+            self.chose, self.t_chose = idx, t; self.game.out.append(f"you_{levels.PICK[idx]}"); say(f"picked {levels.PICK[idx]}")
+        else: self.game.out.append("hush")              # a color not lit yet, or not a color
+
+    def update(self, now):
+        """the names as they come and the nudge, until a press stops them; then the pour, and the level"""
+        if self.chose is None: self.cues.play(now); self.cues.wait(now); return
+        c = levels.PICK[self.chose]; end = self.t_chose + levels.picked_s(self.chose, LINE_S[f"you_{c}"])   # it pours, silently:
+        if now >= end: self.game.player = levels.COLORS[c]; self.game.set_level(self.game.level, end)       # a tick a step froze the tablet
+
+    def render(self, now):
+        return levels.pick_lights(now - self.t_pick, self.p, self.chose, now - self.t_chose if self.chose is not None else 0.0)
+
+class Level:
+    """level n from the top: its opening (its board, sometimes a reveal, and its line), then its
+    tries (tries.py) until the hit has flashed, and the next level. done: level 1 again, after level 5"""
+    def __init__(self, game, n, now, done=False):
+        self.game, self.n, self.R, self.t_open = game, n, LEVELS[n], now
+        self.line = "again" if done else "intro" if n == 1 else f"level{n}"
+        self.o = levels.opening(n, LINE_S[self.line], DONE_S if done else None)
+        self.cues = Cues(game.out, now, [(at, self.line if k == "line" else k) for at, k in self.o.cues], "nudge", now)
+        self.tries = Tries(n, now, self.o.turn, game.down)
+        say(f"level {n}: {self.R.name}, {self.R.cell_s} s a button")
+
+    def next_level(self): return self.n % len(LEVELS) + 1   # one hit and the level is done; after level 5, back to 1
+    def switch(self):
+        """the hit's flash is over: the next level's opening, the phase from now on"""
+        n = self.next_level(); return self.game.set_level(n, self.tries.done_at, done=n == 1)
+
+    def button(self, t, idx, pressed):
+        """only the player's button"""
+        if idx == levels.BUTTON: self.press(t) if pressed else self.release(t)
+
+    def press(self, t):
+        if self.tries.done(t): return self.switch().press(t)   # pressed before it changed
+        for h in self.tries.press(t):
+            if h.what == "not yet": self.game.out.append("hush")   # not the player's turn yet
+            else: self.cues.heard(t)
+
+    def release(self, t):
+        happened = self.tries.release(t)
+        if happened: self.cues.heard(t)
+        for h in happened: self.happened(h, t)
+
+    def update(self, now):
+        """the opening's sounds as they come, the tries, and the nudge"""
+        if self.tries.done(now): return self.switch().update(now)   # the next level's opening
+        self.cues.play(now)
+        for h in self.tries.update(now): self.happened(h, now)
+        if not self.tries.before_turn(now) and not self.tries.held: self.cues.wait(now)
+
+    def happened(self, h, now):
+        """what the tries say happened, as sounds and log lines"""
+        what, out = h.what, self.game.out
+        if what == "step": out.append("step")
+        elif what == "flash": out.append("hit")         # success on the target's first green beat
+        elif what == "stop": out.append("miss_early"); self.report("release", ", it waits: press again")
+        elif what == "turn": self.cues.heard(now)       # the nudge counts from the pulse
+        elif what == "held in": say(f"level {self.n}: held into the turn, the light starts")
+        elif what == "held in again": self.cues.heard(now); say(f"level {self.n}: held into the turn after the miss, the light starts")
+        elif what in ("release", "held to the end"):
+            self.report(what)
+            if h.result != "hit": out.append(f"miss_{h.result}")   # which way, on every level; no stepping back
+            else: n = self.next_level(); say(f"level {self.n}: {'up' if n > self.n else 'back'} to {n} after this try")
+
+    def report(self, what, extra=""):
+        say(f"level {self.n} {what}: {self.tries.summary()}{extra}")
+
+    def render(self, now):
+        if self.tries.before_turn(now): return levels.opening_lights(self.n, now - self.t_open, self.o, self.game.player)
+        return levels.lights(self.n, self.tries.at(now), self.game.player)
+
 class Game:
-    """a session's phases: standby, the pick, and each level's opening and tries (tries.py), from
-    the tablet's presses and let-gos, stamped on receipt; what they do comes out as sounds in out, and log lines"""
+    """a session, from the tablet's presses and let-gos, stamped on receipt, through its phases:
+    Standby, the Pick, and each Level; what they do comes out as sounds in out, and log lines"""
     def __init__(self, level, player=None, standby=False):
-        self.level = level; self.player = player; self.out = []; self.quiet = time.monotonic(); self.nudged = False; self.down = False
-        self.t_open = self.t_pick = self.t_ready = None; self.standby = standby
-        self.tries = None                               # set_level's: the play, and every press on it, needs a level first
+        self.level = level; self.player = player; self.out = []; self.down = False
+        self.phase = Standby(self) if standby else None   # else session() starts the pick or the level
     @property
-    def R(self): return LEVELS[self.level]
+    def standby(self): return isinstance(self.phase, Standby)
 
     def set_level(self, n, now, done=False):
         """level n from the top: its opening, then the player's turn. done: back to 1 after level 5"""
         if n not in LEVELS: return                       # stepped off either end
-        self.level = n; self.t_pick = None; self.standby = False; self.player = self.player or levels.BLUE   # a key during the pick: blue
-        self.line = "again" if done else "intro" if n == 1 else f"level{n}"
-        self.o = levels.opening(n, LINE_S[self.line], DONE_S if done else None); self.t_open = now; self.cue = 0
-        self.tries = Tries(n, now, self.o.turn, self.down)
-        say(f"level {self.level}: {self.R.name}, {self.R.cell_s} s a button")
+        self.level = n; self.player = self.player or levels.BLUE   # a key during the pick: blue
+        self.phase = Level(self, n, now, done); return self.phase
 
     def start_pick(self, now):
         """the pick, once a session; then the level it started on"""
-        self.t_pick = now; self.chose = None; self.cue = 0; self.nudged = False; self.standby = False
-        self.p = levels.pick(LINE_S["pick"], [LINE_S[f"name_{c}"] for c in levels.PICK]); self.quiet = now + self.p.ready
-        say("the pick")
+        self.phase = Pick(self, now); say("the pick")
 
     def button(self, t, idx, pressed):
         """any button: in standby the adult's hold on button 4; during the pick one of the five on
         the top row; after that only the player's"""
         if idx == levels.BUTTON: self.down = pressed    # the player's finger on their button, whatever the phase
-        if self.standby:
-            if idx == READY: self.t_ready = t if pressed else None   # let go early: nothing
-            return
-        if self.t_pick is None:
-            if idx == levels.BUTTON: self.press(t) if pressed else self.release(t)
-            return
-        if not pressed or self.chose is not None: return
-        self.quiet = t; self.nudged = False
-        if idx < len(levels.PICK) and t - self.t_pick >= self.p.names[idx]:   # any color once lit, names still coming
-            self.chose, self.t_chose = idx, t; self.out.append(f"you_{levels.PICK[idx]}"); say(f"picked {levels.PICK[idx]}")
-        else: self.out.append("hush")                   # a color not lit yet, or not a color
+        self.phase.button(t, idx, pressed)
 
-    def picking(self, now):
-        """the pick's sounds as they come, its nudge, and when it's done, level 1's opening"""
-        e = now - self.t_pick
-        while self.chose is None and self.cue < len(self.p.cues) and self.p.cues[self.cue][0] <= e:   # a press stops the names
-            self.out.append(self.p.cues[self.cue][1]); self.cue += 1
-        if self.chose is None and not self.nudged and now - self.quiet > NUDGE_S: self.nudged = True; self.out.append("pick_nudge")
-        if self.chose is not None:                      # the chosen color pours, silently: a tick a step froze the tablet
-            c = levels.PICK[self.chose]; end = self.t_chose + levels.picked_s(self.chose, LINE_S[f"you_{c}"])
-            if now >= end: self.player = levels.COLORS[c]; self.set_level(self.level, end)
-
-    def opening(self, now): return self.tries is not None and self.tries.before_turn(now)
-    def next_level(self): return self.level % len(LEVELS) + 1   # one hit and the level is done; after level 5, back to 1
-    def switch(self):
-        """the hit's flash is over: the next level's opening"""
-        n = self.next_level(); self.set_level(n, self.tries.done_at, done=n == 1)
-
-    def press(self, t):
-        if self.tries.done(t): self.switch()             # pressed before it changed
-        for h in self.tries.press(t):
-            if h.what == "not yet": self.out.append("hush")   # not the player's turn yet
-            else: self.quiet = t; self.nudged = False
-
-    def release(self, t):
-        happened = self.tries.release(t)
-        if happened: self.quiet = t
-        for h in happened: self.happened(h, t)
-
-    def update(self, now):
-        """the opening's sounds as they come, the tries, and the nudge"""
-        if self.standby:                                # held long enough: the pick
-            if self.t_ready is not None and now - self.t_ready >= READY_S: say("ready: the pick"); self.start_pick(now)
-            return
-        if self.t_pick is not None: return self.picking(now)
-        if self.tries.done(now): self.switch()           # the next level's opening
-        e = now - self.t_open
-        while self.cue < len(self.o.cues) and self.o.cues[self.cue][0] <= e:
-            k = self.o.cues[self.cue][1]; self.out.append(self.line if k == "line" else k); self.cue += 1
-        for h in self.tries.update(now): self.happened(h, now)
-        if not self.opening(now) and not self.tries.held and not self.nudged and now - self.quiet > NUDGE_S:
-            self.nudged = True; self.out.append("nudge")
-
-    def happened(self, h, now):
-        """what the tries say happened, as sounds and log lines"""
-        what = h.what
-        if what == "step": self.out.append("step")
-        elif what == "flash": self.out.append("hit")    # success on the target's first green beat
-        elif what == "stop": self.out.append("miss_early"); self.report("release", ", it waits: press again")
-        elif what == "turn": self.quiet = now; self.nudged = False   # the nudge counts from the pulse
-        elif what == "held in": say(f"level {self.level}: held into the turn, the light starts")
-        elif what == "held in again":
-            self.quiet = now; self.nudged = False; say(f"level {self.level}: held into the turn after the miss, the light starts")
-        elif what in ("release", "held to the end"):
-            self.report(what)
-            if h.result != "hit": self.out.append(f"miss_{h.result}")   # which way, on every level; no stepping back
-            else: n = self.next_level(); say(f"level {self.level}: {'up' if n > self.level else 'back'} to {n} after this try")
-
-    def report(self, what, extra=""):
-        say(f"level {self.level} {what}: {self.tries.summary()}{extra}")
-
-    def render(self, now):
-        if self.standby:                                # dark but button 4, dim white, filling while held
-            L = [levels.OFF] * 40; k = levels.clamp((now - self.t_ready) / READY_S) if self.t_ready is not None else 0.0
-            L[READY * 4:READY * 4 + 4] = [levels.scale(levels.WHITE, READY_LO + (1 - READY_LO) * k)] * 4
-            return L
-        if self.t_pick is not None:
-            return levels.pick_lights(now - self.t_pick, self.p, self.chose, now - self.t_chose if self.chose is not None else 0.0)
-        if self.opening(now): return levels.opening_lights(self.level, now - self.t_open, self.o, self.player)
-        return levels.lights(self.level, self.tries.at(now), self.player)
+    def update(self, now): self.phase.update(now)
+    def render(self, now): return self.phase.render(now)
 
 def keys(g):
     """the computer's keyboard picks the level: every tablet button is road on levels 4 and 5"""

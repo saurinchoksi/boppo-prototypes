@@ -45,7 +45,7 @@ class Tries:
       "stop"            level 1, let go short of the target: the light waits for the next press
       "release"         let go, and the try is over, with its result
       "held to the end" held past the grace, or let go after it: a late miss
-      "turn"            the player's turn: their button pulses
+      "turn"            the player's turn: their button pulses, after the opening and after each miss
       "held in"         the turn came with the finger down: the light starts
       "held in again"   the same after a miss
       "step"            the light into the next road button
@@ -53,7 +53,7 @@ class Tries:
     def __init__(self, r, t_open, turn_s, down=False):
         self.r, self.R, self.t_open, self.turn_s, self.down, self.turned = r, LEVELS[r], t_open, turn_s, down, False
         self.new_try()
-    def new_try(self): self.moved = 0.0; self.t_press = self.t_end = self.result = None; self.c = 0; self.flashed = False
+    def new_try(self): self.moved = 0.0; self.t_press = self.t_end = self.result = None; self.c = 0; self.flashed = self.pulsed = False
 
     @property
     def held(self): return self.t_press is not None
@@ -89,8 +89,9 @@ class Tries:
         if not self.turned and now - self.t_open >= self.turn_s:
             self.turned = True; out.append(Happened("turn"))
             if self.down and self.t_press is None and self.t_end is None: self.t_press = self.t_open + self.turn_s; out.append(Happened("held in"))
-        if self.t_end is not None and self.result != "hit" and self.down and now - self.t_end >= levels.turn_at(self.result):
-            turn = self.t_end + levels.turn_at(self.result); self.new_try(); self.t_press = turn; out.append(Happened("held in again"))
+        if self.t_end is not None and self.result != "hit" and not self.pulsed and now - self.t_end >= levels.turn_at(self.result):
+            self.pulsed = True; out.append(Happened("turn"))   # after a miss: the button pulses again
+            if self.down: turn = self.t_end + levels.turn_at(self.result); self.new_try(); self.t_press = turn; out.append(Happened("held in again"))
         if self.t_press is not None:
             moved = self.moving(now); c = int(moved / self.R.cell_s)
             if self.c < c < len(self.R.road): out.append(Happened("step"))

@@ -69,8 +69,14 @@ class Level2(unittest.TestCase):
 
     def test_a_finger_down_when_the_wait_ends(self):
         self.t.press(1.0); self.t.update(1.0); self.t.release(2.0); self.t.press(3.0)
-        self.assertEqual(whats(self.t.update(2.0 + MISS + 0.01)), ["held in again"])
+        self.assertEqual(whats(self.t.update(2.0 + MISS + 0.01)), ["turn", "held in again"])
         self.assertTrue(self.t.at(2.0 + MISS + 0.01).held); self.assertIsNone(self.t.result)
+
+    def test_the_turn_after_a_miss(self):
+        self.t.press(1.0); self.t.update(1.0); self.t.release(2.0)
+        self.assertEqual(self.t.update(2.0 + MISS - 0.01), [])
+        self.assertEqual(whats(self.t.update(2.0 + MISS + 0.01)), ["turn"])
+        self.assertEqual(self.t.update(2.0 + MISS + 0.02), [])      # once
 
     def test_the_hit_flashes_then_the_level_is_done(self):
         self.t.press(1.0); self.t.update(1.0); self.t.release(3.5)

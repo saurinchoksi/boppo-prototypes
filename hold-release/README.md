@@ -92,6 +92,8 @@ played by name on the tablet. None of them are in this repo.
 ## The code
 
 - `hold_release.py`: the game. It reads the buttons, keeps time, plays the sounds and logs.
+  `Game` hands each press and tick to the phase it's in: `Standby`, `Pick`, or a `Level`, its
+  opening and then its tries.
 - `tries.py`: the rules of a try: where the light is, hit or miss, and when the next turn comes,
   from the times of the player's presses and let-gos.
 - `levels.py`: the levels and every light frame, as pure functions of the level and the state
