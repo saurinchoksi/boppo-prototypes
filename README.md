@@ -6,7 +6,7 @@ buttons. Each game runs on a computer and plays on the tablet over Wi-Fi, throug
 
 | Game | |
 |---|---|
-| [Hold, Release](hold-release/) | A light moves only while you hold the button. Letting go on the target is the game. Five levels, ages 4 to 7. |
+| [Hold, Release](hold-release/) | A glow moves only while you hold the button. Releasing on the target is the game. Five levels, ages 4 to 7. |
 
 ## What you need
 
@@ -49,8 +49,8 @@ it for anything the games do, but we haven't tried them without it.
    with the password. (`-k` skips checking the tablet's certificate "for simplicity", as
    Boppo's HTTPS API page puts it; the certificate is signed by the
    [Boppo Device CA](https://developer.boppo.com/BoppoDeviceCA.crt).)
-2. Copy `pairing.example.json` to `pairing.json` and fill in the host and password. This file
-   is ours: the games read it, not the CLI's own store. `pairing.json` is gitignored.
+2. Copy `pairing.example.json` to `pairing.json` and fill in the host and the password. This
+   file is ours: the games read it, not the CLI's own store. `pairing.json` is gitignored.
 
 Then follow the game's README.
 
@@ -61,10 +61,18 @@ The games reach the tablet through `boppo.py`, our Python counterpart of Boppo's
 library. It follows Boppo's [WebSocket API](https://developer.boppo.com/docs/websocket), and
 departs from it in these ways, each from what we saw on our tablet:
 
-- At most 10 frames a second. Boppo documents no limit, but faster, with sounds on top, has
-  hung our tablet's firmware.
-- Whitespace bytes in a frame are nudged off. Boppo's docs say a frame is raw bytes, but our
-  tablet answers "sl invalid length" to them.
+- At most 10 framebuffers a second. Boppo documents no limit, but faster, with sounds on top, has
+  hung our tablet's firmware (a long press on the power button brings it back). To try a higher
+  rate, keep the tablet's USB serial console open
+  ([Developer Mode](https://developer.boppo.com/docs/developer-mode)), so its log up to a hang is
+  kept.
+- Sounds that overlap start together. A sound started tens of ms after another (about 50) has
+  hung our tablet whole, three times: no sound, lights stuck, the connection left open. Sounds
+  sent together, 2 ms apart, never have. It's a race, and Boppo's docs don't mention it.
+  `boppo.py` sends each sound at once, so the spacing is the game's: Hold, Release's tick
+  (`--tick`) is off by default for this reason.
+- Whitespace bytes in a framebuffer are nudged off. Boppo's docs say `set_lights` carries raw
+  bytes, but our tablet answers "sl invalid length" to them.
 - Starting a game stops any other copy on this computer. The tablet takes one connection and
   a new one drops the old (Boppo's docs say so); our games reconnect on their own, so two
   copies would keep knocking each other off.

@@ -1,20 +1,20 @@
 # Hold, Release
 
-A light moves only while you hold the button. Letting go on the target is the game.
+A glow moves only while you hold the button. Releasing on the target is the game.
 
 For ages 4 to 7. The video and the design doc are at
 [saurinchoksi.com/boppo](https://saurinchoksi.com/boppo).
 
 ## How it plays
 
-The player picks a color, then holds the bottom-right button. Their light runs out of it along
-a dim yellow road, and letting go on the green target is a hit. One hit finishes a level; a
+The player picks a color, then holds the bottom-right button. Their glow runs out of it along
+a dim yellow road, and releasing on the green target is a hit. One hit finishes a level; a
 miss plays it again and says which way: "Oops! Keep holding!" or "Oops, too far." After
 level 5, "You did them all!" and back to level 1.
 
 | Level | |
 |---|---|
-| 1 | Stop-and-go: letting go short of the two-button target stops the light, and the next press moves it on. |
+| 1 | Stop-and-go: releasing short of the two-button target stops the glow, and the next press moves it on. |
 | 2 | A one-button target, and one go: any release ends the try. |
 | 3 | As 2, faster. |
 | 4 | The full road, round the corner and along the top row. |
@@ -55,9 +55,9 @@ something Boppo documents.
 | `--now` | Skip standby: the color pick starts as soon as it connects. |
 | `--color blue` | Skip the pick (blue, pink, orange, purple or white). |
 | `--level 3` | Start on level 3. |
-| `--tick` | A tick as the light enters each road button. Off by default: on the test tablet, a voice line starting right after the tick sometimes froze it (what we saw, not in Boppo's docs). |
+| `--tick` | A tick as the glow enters each road button. Off by default: on the test tablet, a voice line starting right after the tick sometimes froze it (what we saw, not in Boppo's docs). |
 
-Every release is printed with the level, where the light stopped and the result, and logged
+Every release is printed with the level, where the glow stopped and the result, and logged
 to `hold-release/logs/`.
 
 ## Sounds
@@ -74,9 +74,9 @@ names, then upload them again.
 | `pick` | Pick your color! |
 | `name_blue`, `name_pink`, `name_orange`, `name_purple`, `name_white` | Blue! Pink! Orange! Purple! White! |
 | `you_blue` … `you_white` | You're Blue! (and so on) |
-| `pick_nudge` | Press a color! |
+| `pick_timeout` | Press a color! |
 | `intro` | Hold your button... and let go on the green! |
-| `nudge` | Press and hold your button! |
+| `timeout` | Press and hold your button! |
 | `level2` | Now the green is smaller! |
 | `level3` | Faster now. Ready? |
 | `level4` | Hold it all the way around, to the green! |
@@ -92,14 +92,14 @@ played by name on the tablet. None of them are in this repo.
 ## The code
 
 - `hold_release.py`: the game. It reads the buttons, keeps time, plays the sounds and logs.
-  `Game` hands each press and tick to the phase it's in: `Standby`, `Pick`, or a `Level`, its
-  opening and then its tries.
-- `tries.py`: the rules of a try: where the light is, hit or miss, and when the next turn comes,
-  from the times of the player's presses and let-gos.
-- `levels.py`: the levels and every light frame, as pure functions of the level and the state
+  `Game` hands each button event and tick to the phase it's in: `Standby`, `Pick`, or a
+  `Level`, its intro and then its tries.
+- `tries.py`: the rules of a try: where the glow is, hit or miss, and when the next turn comes,
+  from the times of the player's presses and releases.
+- `levels.py`: the levels and every framebuffer, as pure functions of the level and the state
   of the try.
 - `upload_lines.py`: puts `sounds/` on the tablet.
-- `../boppo.py`: the tablet, shared by the repo's games: frames, sounds, presses, uploads, and
-  what's true of it, such as how fast frames can go.
+- `../boppo.py`: the tablet, shared by the repo's games: framebuffers, sounds, button events,
+  uploads, and what's true of it, such as how fast framebuffers can go.
 
 Tests: `uv run python -m unittest discover -s hold-release`, from the repo root.

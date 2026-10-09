@@ -1,5 +1,5 @@
-"""The rules of a try, through Tries: presses and let-gos at given times, what happened and where
-the light is. Times stay a hair off the edges, where float sums could land either side.
+"""The rules of a try, through Tries: presses and releases at given times, what happened and where
+the glow is. Times stay a hair off the edges, where float sums could land either side.
 Run from the repo root: uv run python -m unittest discover -s hold-release"""
 import pathlib, sys, unittest
 
@@ -28,8 +28,8 @@ class Level2(unittest.TestCase):
             t = Tries(2, 0.0, 0.0); t.press(0.0)
             self.assertEqual(t.release(held), [(happened, result)], held)
 
-    def test_let_go_after_the_grace(self):
-        """a late miss when the grace ran out, not at the let-go"""
+    def test_release_after_the_grace(self):
+        """a late miss when the grace ran out, not at the release"""
         self.t.press(1.0); self.assertEqual(self.t.release(4.5), [("held to the end", "late")])
         self.assertAlmostEqual(self.t.t_end, 4.1)
 
@@ -63,7 +63,7 @@ class Level2(unittest.TestCase):
     def test_presses_during_the_wait_are_dropped(self):
         self.t.press(1.0); self.t.release(2.0)
         self.assertEqual(self.t.press(2.0 + MISS - 0.01), [])
-        self.assertEqual(self.t.release(2.0 + MISS + 0.5), [])      # its let-go too, though the wait is over
+        self.assertEqual(self.t.release(2.0 + MISS + 0.5), [])      # its release too, though the wait is over
         self.assertEqual(whats(self.t.press(2.0 + MISS + 1.0)), ["press"])
         self.assertAlmostEqual(self.t.at(2.0 + MISS + 1.5).moved, 0.5)   # a new try, from the start
 
@@ -93,12 +93,12 @@ class Level2(unittest.TestCase):
 
     def test_summary(self):
         self.t.press(1.0); self.t.release(4.0)
-        self.assertEqual(self.t.summary(), "held 3.00s, light at 4.00 of 4 buttons (1.00 of the road), button 5 1.00 in, 0.20s into the grace: hit")
+        self.assertEqual(self.t.summary(), "held 3.00s, glow at 4.00 of 4 buttons (1.00 of the road), button 5 1.00 in, 0.20s into the grace: hit")
 
 class Level1(unittest.TestCase):
     """stop-and-go: the target on 6-5, 2 and 3 of the 4 road buttons"""
 
-    def test_let_go_short_waits(self):
+    def test_release_short_waits(self):
         t = Tries(1, 0.0, 0.0); t.press(0.0)
         self.assertEqual(whats(t.release(0.5)), ["stop"])
         self.assertIsNone(t.result); self.assertFalse(t.at(1.0).over)

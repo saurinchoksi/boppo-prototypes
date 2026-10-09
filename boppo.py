@@ -2,19 +2,28 @@
 
     import boppo
     async with boppo.connect(log=print) as tablet:    # TabletGone if it isn't there
-        await tablet.show(frame)                      # 40 (r, g, b), four zones a button
+        framebuffer = [boppo.OFF] * 40                # 40 (r, g, b): buttons 0 to 9, four lights each
+        boppo.set_color(framebuffer, 3, (255, 0, 0))  # button 3's four lights, framebuffer[12:16]
+        await tablet.show(framebuffer)
         await tablet.play("hold-release/intro.wav")   # a path under /sd/activities/user, or "/effects/..."
-        for p in await tablet.buttons(0.01): ...      # Press(t, button, down), stamped on receipt
+        for e in await tablet.buttons(0.01): ...      # ButtonEvent(t, button, pressed), stamped on receipt
     boppo.upload(path, "hold-release/intro.wav")      # where play() finds it
 
 Boppo's WebSocket API (developer.boppo.com/docs/websocket), in Python: Boppo's own client,
 rust_boppo_websocket, is Rust only. Where this departs from Boppo's docs, it's from what we saw
 on our tablet, and says so:
-- Ours: frames go out only when something changed and never faster than MAX_FPS. Boppo documents
-  no limit, but about 20 frames a second with sounds on top has hung our tablet's firmware (a
-  long press on the power button brings it back).
-- Ours: a frame with a whitespace byte in it gets "sl invalid length" back, though Boppo's docs
-  say a frame is raw bytes: UNSPACE nudges them off.
+- Ours: framebuffers go out only when something changed and never faster than MAX_FPS. Boppo
+  documents no limit, but about 20 a second with sounds on top has hung our tablet's firmware (a
+  long press on the power button brings it back). Raise MAX_FPS only with the tablet's USB console
+  open, so its log up to a hang is kept.
+- Ours: a sound started tens of ms after another (about 50) has hung our tablet whole, three times:
+  no sound, lights stuck, the connection left open. Sounds sent together, 2 ms apart, never have;
+  it's a race, and Boppo's docs don't mention it. play() sends each at once, so a game starts
+  sounds that overlap together.
+- Ours, suspected: set_sound_param's "stop" hung our tablet once. play() has no stop: every sound
+  plays to its end.
+- Ours: a framebuffer with a whitespace byte in it gets "sl invalid length" back, though Boppo's
+  docs say `set_lights` carries raw bytes: UNSPACE nudges them off.
 - Boppo's: it takes one connection, and a new one drops the old. Ours: two copies of a game would
   knock each other off every few seconds, so connect() stops any other copy on this computer
   first (only_me).
@@ -34,13 +43,19 @@ from websockets.exceptions import WebSocketException
 PAIRING = pathlib.Path(__file__).resolve().parent / "pairing.json"
 USER = "/sd/activities/user/"               # play()'s paths and upload()'s places are under this
 MAX_FPS = 10
+OFF = (0, 0, 0)
 DIM = (8, 8, 8)
 RESTING = [DIM] * 40                        # the board as a game opens and closes
-SET_LIGHTS = b"set_lights "                 # then the frame, 40 (r, g, b) as 120 bytes
-UNSPACE = {9: 14, 10: 14, 11: 14, 12: 14, 13: 14, 32: 33}   # whitespace bytes in a frame: the tablet answers "sl invalid length"
+SET_LIGHTS = b"set_lights "                 # then the framebuffer, 40 (r, g, b) as 120 bytes
+UNSPACE = {9: 14, 10: 14, 11: 14, 12: 14, 13: 14, 32: 33}   # whitespace bytes in a framebuffer: the tablet answers "sl invalid length"
 
-Press = collections.namedtuple("Press", "t button down")
-Press.__doc__ = """a button pressed (down) or let go; t: time.monotonic() when it arrived"""
+def set_color(framebuffer, button, color):
+    """button's four lights in framebuffer set to color, as Boppo's Framebuffer::set_color does with a
+    Button: top, left, right, bottom at framebuffer[button * 4:button * 4 + 4]"""
+    framebuffer[button * 4:button * 4 + 4] = [color] * 4
+
+ButtonEvent = collections.namedtuple("ButtonEvent", "t button pressed")
+ButtonEvent.__doc__ = """a button pressed or released; t: time.monotonic() when it arrived"""
 
 class TabletGone(ConnectionError):
     """the tablet isn't there, or has dropped the connection: asleep, off, or another connection took
@@ -51,7 +66,7 @@ def pairing(host=None, password=None):
     if host and password: return host, password
     if not PAIRING.exists(): raise SystemExit(f"No {PAIRING.name} at the repo root: pair with the tablet first (README, Pairing).")
     cfg = json.loads(PAIRING.read_text())
-    return host or cfg["host"], password or cfg["password"]
+    return host or cfg["host"], password or cfg.get("password") or cfg["token"]   # "token" in a file from 10/7, before the key went back to Boppo's word
 
 def _auth(password): return {"Authorization": f"Bearer {password}"}
 
@@ -78,8 +93,8 @@ class Tablet:
     tablet says and the board goes DIM; it goes back to DIM on the way out"""
     def __init__(self, socket, log=print, clock=time.monotonic):
         self.socket, self.log, self.clock = socket, log, clock
-        self._frame = self._sent = None; self._last = -math.inf; self._cid = 0
-        self._presses = asyncio.Queue(); self._reader = None; self._why = None
+        self._framebuffer = self._sent = None; self._last = -math.inf; self._cid = 0
+        self._events = asyncio.Queue(); self._reader = None; self._why = None
 
     async def __aenter__(self):
         self._reader = asyncio.create_task(self._read())
@@ -103,11 +118,11 @@ class Tablet:
         try:
             async for msg in self.socket:
                 t = self.clock(); p = msg.split() if isinstance(msg, str) else []
-                if p[:1] == ["button"] and len(p) >= 3: self._presses.put_nowait(Press(t, int(p[1]), p[2] == "p"))
+                if p[:1] == ["button"] and len(p) >= 3: self._events.put_nowait(ButtonEvent(t, int(p[1]), p[2] == "p"))
                 elif p[:1] == ["error_message"]: self.log("tablet:", msg)
         except Exception as e:
             self._why = e                               # the connection's end, or a bug in reading it: buttons() tells them apart
-        self._presses.put_nowait(None)                  # over: buttons() says so
+        self._events.put_nowait(None)                   # over: buttons() says so
 
     async def _send(self, msg):
         try:
@@ -116,23 +131,23 @@ class Tablet:
             raise TabletGone("the tablet dropped the connection") from e
 
     # lights
-    async def show(self, frame):
-        """the lights: 40 (r, g, b), buttons 0 to 9, four zones each: top, left, right, bottom. Sent
-        now if a frame's slot is open (MAX_FPS); if not, the newest frame shown goes out with the
-        first show() or buttons() after it opens. Never a frame the same as the last one sent."""
-        self._frame = [tuple(UNSPACE.get(v, v) for v in c) for c in frame]
+    async def show(self, framebuffer):
+        """the lights: 40 (r, g, b), buttons 0 to 9, four lights each: top, left, right, bottom. Sent
+        now if a framebuffer's slot is open (MAX_FPS); if not, the newest one shown goes out with
+        the first show() or buttons() after it opens. Never one the same as the last one sent."""
+        self._framebuffer = [tuple(UNSPACE.get(v, v) for v in c) for c in framebuffer]
         await self._flush()
 
     async def _flush(self):
-        if self._frame is None or self._frame == self._sent or self.clock() - self._last < 1 / MAX_FPS: return
-        await self._put(self._frame)
+        if self._framebuffer is None or self._framebuffer == self._sent or self.clock() - self._last < 1 / MAX_FPS: return
+        await self._put(self._framebuffer)
 
-    async def _put(self, frame):
-        """frame out as soon as its slot opens, changed or not"""
+    async def _put(self, framebuffer):
+        """framebuffer out as soon as its slot opens, changed or not"""
         wait = self._last + 1 / MAX_FPS - self.clock()
         if wait > 0: await asyncio.sleep(wait)
-        await self._send(SET_LIGHTS + bytes(v for c in frame for v in c))
-        self._sent = frame; self._last = self.clock()
+        await self._send(SET_LIGHTS + bytes(v for c in framebuffer for v in c))
+        self._sent = framebuffer; self._last = self.clock()
 
     # sound
     async def play(self, sound):
@@ -144,23 +159,23 @@ class Tablet:
 
     # buttons
     async def buttons(self, timeout):
-        """every Press waiting, in order; waits up to timeout for the first, [] if none comes.
+        """every ButtonEvent waiting, in order; waits up to timeout for the first, [] if none comes.
         TabletGone once the connection has dropped"""
         await self._flush()
         try:
-            got = [await asyncio.wait_for(self._presses.get(), timeout)]
+            got = [await asyncio.wait_for(self._events.get(), timeout)]
         except TimeoutError:
             return []
-        while not self._presses.empty(): got.append(self._presses.get_nowait())
+        while not self._events.empty(): got.append(self._events.get_nowait())
         if None in got:
-            self._presses.put_nowait(None)              # and on every call after
+            self._events.put_nowait(None)               # and on every call after
             if not isinstance(self._why, (OSError, WebSocketException, type(None))): raise self._why   # a bug, not the tablet going
             raise TabletGone("the tablet closed the connection") from self._why
         return got
 
 class MemorySocket:
-    """the tablet in memory, for tests: what was sent, in sent (frames() and sounds() read it back);
-    press() and say() as the tablet would say them; drop() as the connection goes"""
+    """the tablet in memory, for tests: what was sent, in sent (framebuffers() and sounds() read it
+    back); press(), release() and say() as the tablet would say them; drop() as the connection goes"""
     def __init__(self):
         self.sent = []; self.dropped = False; self._in = asyncio.Queue(); self._held = set()
 
@@ -175,14 +190,16 @@ class MemorySocket:
         return msg
 
     def say(self, msg): self._in.put_nowait(msg)
-    def press(self, button, down=True):
-        """as the tablet says it: the button, p or r, and every button held as a hex bit set"""
-        (self._held.add if down else self._held.discard)(button)
-        self.say(f"button {button} {'p' if down else 'r'} {sum(1 << b for b in self._held):x}")
+    def event(self, button, pressed):
+        """a button event as the tablet says it: the button, p or r, and every button held as a hex bit set"""
+        (self._held.add if pressed else self._held.discard)(button)
+        self.say(f"button {button} {'p' if pressed else 'r'} {sum(1 << b for b in self._held):x}")
+    def press(self, button): self.event(button, True)
+    def release(self, button): self.event(button, False)
     def drop(self): self.dropped = True; self._in.put_nowait(None)
 
-    def frames(self):
-        """every frame sent, as 40 (r, g, b)"""
+    def framebuffers(self):
+        """every framebuffer sent, as 40 (r, g, b)"""
         return [[tuple(m[i:i + 3]) for i in range(len(SET_LIGHTS), len(m), 3)] for m in self.sent if isinstance(m, bytes)]
     def sounds(self):
         """every sound played, its path"""
