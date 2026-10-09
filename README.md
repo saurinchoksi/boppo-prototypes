@@ -1,12 +1,20 @@
 # Boppo prototypes
 
-Game prototypes for [Boppo](https://boppo.com), a screen-free tablet with ten light-up
-buttons. Each game runs on a computer and plays on the tablet over Wi-Fi, through Boppo's
-[WebSocket API](https://developer.boppo.com/docs/websocket). One folder per game.
+Game prototypes and tools for [Boppo](https://boppo.com), a screen-free tablet with ten
+light-up buttons. Each game runs on a computer and plays on the tablet over Wi-Fi, through
+Boppo's [WebSocket API](https://developer.boppo.com/docs/websocket). One folder per game.
 
 | Game | |
 |---|---|
 | [Hold, Release](hold-release/) | A glow moves only while you hold the button. Releasing on the target is the game. Five levels, ages 4 to 7. |
+
+| Tool | |
+|---|---|
+| [boppo-gif](.claude/skills/boppo-gif/) | A [Claude Code](https://claude.com/claude-code) skill that draws the tablet as GIFs, no tablet needed. Ask Claude for one ("buttons 4 and 5 pulse purple, twice") and it writes a short script that draws it, checks its timing, looks at its frames, and hands it to you to judge. The GIFs in [Hold, Release's design doc](https://saurinchoksi.com/boppo) are drawn with it. |
+
+To use the skill, run `claude` in a clone of this repo, or copy `.claude/skills/boppo-gif/`
+into `~/.claude/skills/` to have it everywhere. It needs only
+[uv](https://docs.astral.sh/uv/), which brings its Python packages.
 
 ## What you need
 
