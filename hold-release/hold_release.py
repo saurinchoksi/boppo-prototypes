@@ -80,9 +80,9 @@ def say(*a):
 
 class Cues:
     """a phase's sounds: its cues, (at, key) from its start, each queued in out as its time comes;
-    and its timeout prompt, once a wait, when no press has come for TIMEOUT_S"""
-    def __init__(self, out, start, cues, timeout, quiet):
-        self.out, self.start, self.cues, self.timeout, self.cue = out, start, cues, timeout, 0; self.heard(quiet)
+    and its timeout_line, the prompt said once a wait when no press has come for TIMEOUT_S"""
+    def __init__(self, out, start, cues, timeout_line, quiet):
+        self.out, self.start, self.cues, self.timeout_line, self.cue = out, start, cues, timeout_line, 0; self.heard(quiet)
     def heard(self, t):
         """a press, or the turn: the timeout prompt counts from here"""
         self.quiet = t; self.timed_out = False
@@ -91,7 +91,7 @@ class Cues:
             self.out.append(self.cues[self.cue][1]); self.cue += 1
     def wait(self, now):
         """waiting for a press: the timeout prompt, once TIMEOUT_S has gone by without one"""
-        if not self.timed_out and now - self.quiet > TIMEOUT_S: self.timed_out = True; self.out.append(self.timeout)
+        if not self.timed_out and now - self.quiet > TIMEOUT_S: self.timed_out = True; self.out.append(self.timeout_line)
 
 class Standby:
     """the dark board before a sitting but button 4, dim white: an adult holds it READY_S to start

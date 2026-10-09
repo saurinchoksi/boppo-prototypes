@@ -1,6 +1,6 @@
 """The tablet's rules, over the tablet in memory (boppo.MemorySocket) with a clock the tests move.
 Run from the repo root: uv run python -m unittest test_boppo"""
-import asyncio, os, pathlib, subprocess, sys, tempfile, textwrap, time, unittest
+import asyncio, fcntl, os, pathlib, subprocess, sys, tempfile, textwrap, threading, time, unittest, urllib.error
 from unittest import mock
 
 import boppo
@@ -106,6 +106,12 @@ class Upload(unittest.TestCase):
                          ("POST", "https://boppo-X.local/files/upload?path=/sd/activities/user/hold-release/intro.wav", b"RIFF", 30))
         self.assertEqual(dict(req.header_items()), {"Authorization": "Bearer pw", "Content-type": "application/octet-stream"})
 
+    def test_a_refusal_is_its_status(self):
+        class Web:
+            def open(self, req, timeout): raise urllib.error.HTTPError(req.full_url, 500, "Internal Server Error", {}, None)
+        with tempfile.NamedTemporaryFile(suffix=".wav") as f, mock.patch.object(boppo, "_web", Web):
+            self.assertEqual(boppo.upload(f.name, "hold-release/intro.wav", "boppo-X.local", "pw"), 500)
+
 class OnlyMe(unittest.TestCase):
     """one connection to the tablet: a new copy stops the one before it"""
     def setUp(self):
@@ -125,6 +131,15 @@ class OnlyMe(unittest.TestCase):
         self.assertEqual(said, [f"stopped the copy already running (pid {before.pid}, SIGINT)"])
         self.assertEqual((pathlib.Path(self.locks.name) / f"boppo-{self.host}.lock").read_text(), str(os.getpid()))
         boppo._LOCK.close()
+
+    def test_a_moments_hold_is_not_a_copy(self):
+        """tablet.py check takes the lock for a moment to see if it's held; a stale pid in the file isn't signalled"""
+        stale = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"]); self.addCleanup(stale.kill)
+        path = pathlib.Path(self.locks.name) / f"boppo-{self.host}.lock"; path.write_text(str(stale.pid))
+        look = open(path); fcntl.flock(look, fcntl.LOCK_EX)
+        threading.Timer(0.1, look.close).start()
+        said = []; boppo.only_me(self.host, said.append)
+        self.assertEqual(said, []); self.assertIsNone(stale.poll()); boppo._LOCK.close()
 
     def test_no_copy_before(self):
         said = []; boppo.only_me(self.host, said.append); boppo.only_me(self.host, said.append)   # once a process

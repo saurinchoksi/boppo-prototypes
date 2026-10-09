@@ -141,7 +141,7 @@ def lights(r, t, player=BLUE):
 # the first note, and the player's turn comes when the later of the two ends. The road reveal: a
 # sweep at the level's speed from where the road starts to the target, a rising piano note as it
 # enters each button, its front shimmering (all four lights lit, one dipped, a different one each
-# frame), the road behind at half; the target swells green with a chord; everything fades to the
+# framebuffer), the road behind at half; the target swells green with a chord; everything fades to the
 # dim road together (never far end first: that's the miss's drain)
 REVEAL = {1: 0, 4: 3}           # the levels with a reveal, and the road button it unfolds from: level 1
                                 # beside the player's button on a dark board; level 4 level 3's target, button 5
@@ -149,7 +149,7 @@ BEFORE_S = 0.8                  # the board as it was, before the sweep
 SWELL_S, SWELLED_S = 0.5, 0.5   # the target swells, then holds
 FADE_S = 0.8                    # the new road down to dim
 HALF = 0.5                      # the revealed road behind the sweep
-DIP, SHIMMER = 0.4, (0, 2, 3, 1)   # the front button's dipped light, frame by frame: top, right, bottom, left, clockwise as Boppo's swirl
+DIP, SHIMMER = 0.4, (0, 2, 3, 1)   # the front button's dipped light, framebuffer by framebuffer: top, right, bottom, left, clockwise as Boppo's swirl
 CLEAR_S = 0.6                   # level 1's second pass: level 5's road fades out, together, before the reveal
 RING, RING_S = [9, 8, 7, 6, 5, 0, 1, 2, 3, 4], 0.1   # the finish: the player's color round the ring, clockwise from their button,
 FINALE_S = len(RING) * RING_S + 2 * PULSE_S          # a hard step a button, then all ten breathe twice
@@ -216,7 +216,7 @@ PICK = list(COLORS)             # on buttons 0 to 4, in this order
 NAME_S = 0.8                    # a name's turn at least, its color fading in over LIT_S
 LIT_S = 0.3
 OUT_S, KEEP_S = 0.6, 0.3        # after the press: the others go out; the chosen one holds alone
-SWIRL_LO = 0.5                  # meanwhile it swirls: one light full, the others at this, clockwise, a step a frame
+SWIRL_LO = 0.5                  # meanwhile it swirls: one light full, the others at this, clockwise, a step a framebuffer
 POUR_S, TAIL = 0.15, 2.0        # then it pours to the player's button, POUR_S a button, its tail TAIL buttons long
 YOURS_S = 0.5                   # the player's button lit after "You're Blue!", before level 1's intro
 

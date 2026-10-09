@@ -36,7 +36,7 @@ on our tablet, and says so:
 The host and password come from pairing.json at the repo root (see the README). Tests build a
 Tablet over MemorySocket, the tablet in memory.
 """
-import asyncio, collections, contextlib, fcntl, functools, json, math, os, pathlib, signal, ssl, time, urllib.request
+import asyncio, collections, contextlib, fcntl, functools, json, math, os, pathlib, signal, ssl, time, urllib.error, urllib.request
 import websockets
 from websockets.exceptions import WebSocketException
 
@@ -66,7 +66,7 @@ def pairing(host=None, password=None):
     if host and password: return host, password
     if not PAIRING.exists(): raise SystemExit(f"No {PAIRING.name} at the repo root: pair with the tablet first (README, Pairing).")
     cfg = json.loads(PAIRING.read_text())
-    return host or cfg["host"], password or cfg.get("password") or cfg["token"]   # "token" in a file from 10/7, before the key went back to Boppo's word
+    return host or cfg["host"], password or cfg["password"]
 
 def _auth(password): return {"Authorization": f"Bearer {password}"}
 
@@ -229,7 +229,7 @@ def only_me(host, log=print):
         f = open(path, "a+")
     except PermissionError:
         raise SystemExit(f"{path} is another user's: their copy may be connected to the tablet.") from None
-    if not _take(f):
+    if not _take(f, wait=0.5):                          # a moment's hold is a look (tablet.py check), not a copy
         old = None
         for _ in range(10):                             # the holder writes its pid just after it takes the lock; until then
             time.sleep(0.1)                             # the file is empty, or holds the last holder's, maybe someone else's now
@@ -253,8 +253,11 @@ def _web(): return urllib.request.build_opener(urllib.request.ProxyHandler({}), 
 
 def upload(path, dest, host=None, password=None):
     """the file at path onto the tablet at dest, under /sd/activities/user where play() finds it,
-    over HTTPS; the HTTP status"""
+    over HTTPS; the HTTP status, a refusal's (4xx, 5xx) too"""
     host, password = pairing(host, password)
     req = urllib.request.Request(f"https://{host}/files/upload?path={USER}{dest}", data=pathlib.Path(path).read_bytes(), method="POST",
                                  headers={**_auth(password), "Content-Type": "application/octet-stream"})
-    return _web().open(req, timeout=30).status
+    try:
+        return _web().open(req, timeout=30).status
+    except urllib.error.HTTPError as e:
+        e.close(); return e.code
