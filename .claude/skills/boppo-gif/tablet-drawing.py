@@ -1,6 +1,10 @@
 """The tablet drawing every GIF generator shares: an illustrated Boppo, seen from the front at an
 angle, from a small 3D model with one camera, so the perspective is consistent. Not run on its
-own: each generator exec()s it, then draws with frame(), add_light() and all_lights()."""
+own: each generator loads it by path as a module (the hyphen rules out import), as gif.py's starter
+does, then draws with drawing.frame(), add_light() and all_lights(); a generator's own names
+(FPS, COLS) don't reach it:
+    spec = importlib.util.spec_from_file_location("tablet_drawing", SKILL / "tablet-drawing.py")
+    spec.loader.exec_module(drawing := importlib.util.module_from_spec(spec))"""
 from PIL import Image, ImageDraw
 import math, pathlib
 import numpy as np

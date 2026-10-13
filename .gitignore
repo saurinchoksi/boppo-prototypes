@@ -2,3 +2,4 @@ pairing.json
 logs/
 __pycache__/
 .venv/
+studio/

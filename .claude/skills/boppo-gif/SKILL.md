@@ -2,7 +2,8 @@
 name: boppo-gif
 description: GIFs of the Boppo tablet, drawn without it: an illustrated Boppo whose buttons light
   as a game would light them. Use to draw a new one, change one or look at one, and before a GIF
-  generator is written, changed or run.
+  generator is written, changed or run, and to open the GIF studio, a page for painting one by
+  hand.
 ---
 
 # Drawing the tablet
@@ -20,15 +21,20 @@ Which generator:
   copy of the generator whose GIFs come closest.
 - **A one-off**: `G new /tmp/<name>.py`. It skips step 3: its GIFs stay where step 1 wrote them.
 
-The drawing (`tablet-drawing.py`, which every generator `exec()`s, so a change to it changes every
-GIF: re-check them all). Buttons 0-4 are the top row, 5-9 the bottom row, the kid's side; the
-drawing's key for button n is `(n // 5, n % 5)`. `frame(lights, presses)` is one image: `lights`
-maps a key to its lit sides, each of a button's four lights (top, left, right, bottom) a
-`(color, strength 0-1)`, filled by `all_lights(lights, key, color, strength)` or
+**The studio** (`studio.py`), for someone who'd rather paint an animation on a timeline than ask
+for a generator: `uv run <folder>/studio.py` from the project's root, so its animations go in
+`studio/` there. Leave it running in the background and give them the address it prints
+(`http://127.0.0.1:8765/`); its `--help` says the rest.
+
+The drawing (`tablet-drawing.py`, which every generator loads as the module `drawing`, so a change
+to it changes every GIF: re-check them all). Buttons 0-4 are the top row, 5-9 the bottom row, the
+kid's side; the drawing's key for button n is `(n // 5, n % 5)`. `frame(lights, presses)` is one
+image: `lights` maps a key to its lit sides, each of a button's four lights (top, left, right,
+bottom) a `(color, strength 0-1)`, filled by `all_lights(lights, key, color, strength)` or
 `add_light(lights, key, side, color, strength)`; `presses` maps a key to how far it's pushed in,
 0-1. A color is an RGB tuple; the drawing has `GREEN` and `BLUE`. FPS 10 is the tablet's: a GIF
-stores whole hundredths, so 15 fps plays about 10% fast. To check that buttons are lit green in
-the first frame (a target, say), pass `dots` to `gifcheck.check`: its docstring says how.
+stores whole hundredths, so 15 fps plays about 10% fast. To check that buttons are lit green in the
+first frame (a target, say), pass `dots` to `gifcheck.check`: its docstring says how.
 
 1. **Draw it.** Change the generator, then `G check <generator> [name ...]`. Done when it
    exits 0: no `<<` line, and a sheet path for each GIF.

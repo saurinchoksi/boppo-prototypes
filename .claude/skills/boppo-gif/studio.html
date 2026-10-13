@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Boppo GIF studio</title>
+<style>
+  /* Night-light: a dim plum room, the tablet the one bright object on a cream card (the drawing's BG) */
+  :root {
+    --bg: #2b1f33; --panel: #33263c; --lane: #221829; --line: #45364f; --line2: #5a4867; --ink: #f6eef3; --mute: #b3a1bd;
+    --accent: #e0509f; --accent-soft: #4a2c4a; --field: #261b2d; --key: #3f3049; --key-hi: #4a3955; --key-edge: #1d1424;
+    --cream: #f7f4ee; --row: 34px; --label: 112px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 13px/1.4 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  button, input, select { font: inherit; color: inherit; }
+  button { border: 0; background: var(--key); box-shadow: 0 2px 0 var(--key-edge); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+  button:hover { background: var(--key-hi); }
+  button.primary { background: var(--accent); box-shadow: 0 2px 0 #8c2a62; color: #fff; }
+  button.primary:hover { background: #e863ab; }
+  button.quiet { background: transparent; box-shadow: none; color: var(--mute); }
+  button.quiet:hover { background: var(--key); color: var(--ink); }
+  button:disabled { opacity: .4; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=number], input[type=text] { border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; background: var(--field); width: 100%; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  kbd { font: 11px ui-monospace, Menlo, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: var(--lane); color: var(--mute); }
+  .muted { color: var(--mute); }
+  .star { color: var(--accent); }
+  .app { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 52px minmax(0, 1fr) auto; height: 100vh; }
+  .app.gridmode { grid-template-columns: 240px minmax(0, 1fr) 0; }
+  .app.gridmode aside.inspector, .app.gridmode .eonly, .app:not(.gridmode) .gonly { display: none; }
+
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header .brand { font-weight: 600; }
+  header .brand span { color: var(--accent); }
+  header .name { font-size: 15px; font-weight: 600; padding: 4px 10px; border-radius: 8px; cursor: text; }
+  header .name:hover { background: var(--key); }
+  .app.gridmode header .name { cursor: default; background: none; }
+  header .spacer { flex: 1; }
+  .status { color: var(--mute); }
+  .status.dot { width: 8px; height: 8px; border-radius: 50%; margin: 0 4px; }
+  .status.saved { background: var(--line2); }
+  .status.unsaved { background: var(--accent); }
+  .seg { display: inline-flex; background: var(--lane); padding: 3px; border-radius: 999px; gap: 2px; }
+  .seg button { box-shadow: none; background: transparent; padding: 4px 12px; }
+  .seg button:hover { background: var(--key); }
+  .seg button.on { background: var(--ink); color: var(--bg); font-weight: 600; }
+  .seg button.on kbd { background: transparent; color: var(--bg); border-color: rgba(0,0,0,.25); }
+
+  /* the rail: a slim row an animation, its still (playing on hover), its name, a strip of its timeline */
+  aside.list { border-right: 1px solid var(--line); background: var(--panel); overflow: auto; padding: 12px 10px; }
+  aside.list h3 { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; margin: 0 4px 10px; }
+  aside.list h3 .plus { width: 28px; height: 28px; padding: 0; font-size: 17px; line-height: 1; }
+  .item { position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 10px; padding: 6px; margin-bottom: 2px; border-radius: 10px; cursor: pointer; }
+  .item:hover { background: var(--key); }
+  .item.cur { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+  .item img { width: 64px; display: block; aspect-ratio: 64 / 34; object-fit: cover; object-position: 50% 42%; border-radius: 6px; background: var(--cream); }
+  .item .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .n .num { color: var(--mute); margin-right: 3px; font-weight: 400; }
+  .item .sub { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .item .score { position: relative; flex: 1; height: 22px; border-radius: 4px; background: var(--lane); overflow: hidden; }
+  .item .score i { position: absolute; height: 2px; border-radius: 1px; }
+  .item .len { color: var(--mute); font-size: 11px; }
+  .item .acts { position: absolute; top: 4px; right: 4px; display: none; gap: 2px; }
+  .item:hover .acts { display: flex; }
+  .item .acts button { width: 24px; height: 24px; padding: 0; font-size: 12px; box-shadow: none; background: var(--panel); color: var(--mute); }
+  .item .acts button:hover { color: var(--ink); background: var(--key-hi); }
+  .bgroup { margin-bottom: 4px; }
+  .bhead { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 8px; cursor: pointer; color: var(--mute); }
+  .bhead:hover { background: var(--key); }
+  .bhead .tw { width: 10px; font-size: 10px; }
+  .bhead .bt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bhead .bc { font-size: 11px; }
+  .bgroup:not(.open) .members { display: none; }
+
+  /* the stage: the tablet on its card; the version's way back and Light/Press left of it, help right */
+  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .stage { flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; padding: 14px 16px 12px; }
+  .stage .side { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-width: 0; }
+  .stage .side.left { align-items: flex-start; }
+  .stage .side.right { align-items: flex-end; }
+  .card { background: var(--cream); border-radius: 22px; padding: 6px; box-shadow: 0 18px 40px -12px rgba(0,0,0,.6); }
+  .card canvas { width: min(640px, 50vh, calc(100vw - 760px)); min-width: 300px; aspect-ratio: 720 / 330; display: block; }
+  .drawing { color: var(--mute); font-size: 11px; opacity: 0; transition: opacity .15s; }
+  .drawing.show { opacity: 1; }
+  .help { width: 30px; height: 30px; padding: 0; color: var(--mute); }
+  .ctx a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .ctx a:hover { text-decoration: underline; }
+  .ctx .new { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 9px; margin-right: 6px; font-weight: 600; font-size: 11px; }
+  .pop { position: fixed; z-index: 20; width: 340px; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; padding: 14px 16px; box-shadow: 0 18px 40px -10px rgba(0,0,0,.7); }
+  .pop h4 { margin: 0 0 6px; font-size: 13px; }
+  .pop h4 + * { margin-top: 0; }
+  .pop .keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin-bottom: 14px; color: var(--mute); }
+  .pop .keys span:nth-child(odd) { white-space: nowrap; }
+  .pop p { color: var(--mute); margin: 0 0 10px; }
+
+  /* the timeline: Play and the time in the corner left of the ruler */
+  .tl { flex: 1; min-height: 0; overflow: auto; border-top: 1px solid var(--line); background: var(--lane); position: relative; user-select: none; }
+  .tl-inner { position: relative; min-width: 100%; }
+  .ruler { position: sticky; top: 0; height: 36px; background: var(--lane); border-bottom: 1px solid var(--line); z-index: 6; cursor: ew-resize; margin-left: var(--label); }
+  .ruler .corner { position: absolute; left: calc(-1 * var(--label)); width: var(--label); top: 0; height: 100%; display: flex; align-items: center; gap: 6px; padding-left: 8px; background: var(--lane); border-right: 1px solid var(--line); cursor: default; }
+  .corner #play { width: 26px; height: 26px; padding: 0; font-size: 10px; flex: none; }
+  .corner #play.on { background: var(--ink); color: var(--bg); }
+  .corner .time { color: var(--mute); font-size: 11px; white-space: nowrap; }
+  .ruler .tick { position: absolute; top: 0; height: 100%; border-left: 1px solid #3a2c44; }
+  .ruler .tick.major { border-left-color: #4d3c59; }
+  .ruler .tick span { position: absolute; top: 3px; left: 4px; color: var(--mute); font-size: 11px; }
+  .ruler .end { position: absolute; top: 0; width: 10px; margin-left: -5px; height: 100%; cursor: col-resize; z-index: 2; }
+  .ruler .end::after { content: ""; position: absolute; left: 4px; top: 3px; bottom: 3px; width: 2px; background: var(--ink); border-radius: 1px; }
+  .still { position: absolute; bottom: 2px; height: 14px; padding: 0 6px 0 5px; border-radius: 0 7px 7px 0; background: var(--ink); color: var(--bg); font-size: 10px; line-height: 14px; font-weight: 600; cursor: grab; z-index: 3; }
+  .still::before { content: ""; position: absolute; left: 0; top: -5px; height: 5px; border-left: 2px solid var(--ink); }
+  .group { position: relative; color: var(--mute); font-size: 11px; height: 24px; line-height: 24px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .group span { position: absolute; left: 10px; z-index: 8; background: var(--bg); padding-right: 10px; }
+  .row { position: relative; isolation: isolate; height: var(--row); border-bottom: 1px solid var(--panel); margin-left: var(--label); cursor: crosshair; }
+  .row.alt { background: #271c2f; }
+  .row .lab { position: absolute; left: calc(-1 * var(--label)); width: var(--label); height: 100%; display: flex; align-items: center; gap: 8px; padding-left: 12px; color: var(--mute); background: var(--lane); border-right: 1px solid var(--line); cursor: default; }
+  .row .lab .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line2); background: var(--panel); }
+  .row .past { position: absolute; top: 0; bottom: 0; background: rgba(255,255,255,.03); pointer-events: none; }
+  /* a light glows in its color; one inside another draws inside it, slimmer each level; partial overlaps take lanes */
+  .blk { position: absolute; z-index: var(--z); border-radius: 999px; cursor: grab; overflow: hidden; font-size: 11px; font-weight: 600; padding: 0 8px; white-space: nowrap;
+    box-shadow: 0 0 14px -2px var(--c), inset 0 0 0 1px rgba(255,255,255,.15); }
+  .blk.dark { color: rgba(20,10,25,.72); }
+  .blk.light { color: rgba(255,255,255,.95); text-shadow: 0 0 3px rgba(0,0,0,.45); }
+  .blk .fx:not(:empty) { background: var(--c); border-radius: 999px; padding: 0 5px; margin-left: -5px; }   /* readable over a flash's off half */
+  .blk.inset { box-shadow: 0 0 0 2px var(--lane), 0 0 10px -2px var(--c); padding: 0 6px; }
+  .blk.sel { box-shadow: 0 0 14px -2px var(--c), 0 0 0 1.5px var(--lane), 0 0 0 3.5px #fff; z-index: calc(var(--z) + 1); }
+  .prs { position: absolute; bottom: 2px; height: 5px; border-radius: 3px; background: var(--ink); cursor: grab; min-width: 6px; }
+  .prs.sel { box-shadow: 0 0 0 2px var(--accent); z-index: 4; }
+  .cap { position: absolute; top: 5px; height: calc(var(--row) - 10px); border-radius: 8px; background: var(--key); border: 1px solid var(--line2); cursor: grab;
+    font-size: 11px; line-height: 22px; padding: 0 8px; overflow: hidden; white-space: nowrap; }
+  .cap.sel { border-color: #fff; box-shadow: 0 0 0 1px #fff; z-index: 4; }
+  .ghost { position: absolute; border-radius: 999px; border: 1.5px dashed var(--c, var(--mute)); background: color-mix(in srgb, var(--c, var(--mute)) 22%, transparent); pointer-events: none; z-index: 1; }
+  .ghost.cap-ghost { border-radius: 8px; }
+  .head { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; z-index: 7; pointer-events: none; }
+  .head::before { content: ""; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: #fff; }
+
+  /* the panel on the right: a title with Delete on its line, then color, effect, timing */
+  aside.inspector { border-left: 1px solid var(--line); background: var(--panel); overflow: auto; padding: 14px 16px; }
+  .ptitle { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .ptitle h3 { margin: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ptitle #rm { color: #ff8a9a; padding: 4px 10px; }
+  .sect { padding: 12px 0; border-top: 1px solid var(--line); }
+  .sect h4 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  .field { margin-bottom: 12px; }
+  .field:last-child { margin-bottom: 0; }
+  .field > label, .unit-l { display: block; color: var(--mute); margin-bottom: 5px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .unit { position: relative; }
+  .unit input { padding-right: 22px; }
+  .unit i { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--mute); pointer-events: none; }
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .sw { aspect-ratio: 1; border-radius: 50%; border: 1px solid rgba(255,255,255,.15); cursor: pointer; position: relative; box-shadow: 0 0 10px -3px var(--c); }
+  .sw.on::after { content: ""; position: absolute; inset: -4px; border: 2px solid #fff; border-radius: 50%; }
+  .sw.none { background: repeating-linear-gradient(45deg, #f6eef3, #f6eef3 3px, #8a7b93 3px, #8a7b93 5px); }
+  .ring { display: flex; align-items: center; gap: 14px; }
+  .ring svg { width: 104px; height: 104px; overflow: visible; flex: none; }
+  .ring path { fill: none; stroke-width: 11; stroke-linecap: round; cursor: pointer; }
+  .ring path.on { stroke: var(--c); filter: drop-shadow(0 0 5px var(--c)); }
+  .ring path.off { stroke: var(--line); }
+  .ring path.off:hover { stroke: var(--line2); }
+  .ring .face { fill: var(--cream); stroke: #d8d0c4; stroke-width: 1.5; }
+  .ring .say b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .ring .say { color: var(--mute); }
+
+  /* the grid: a batch of versions taking the whole stage */
+  main.gridmode > .stage, main.gridmode > .tl { display: none; }
+  .grid { display: none; flex: 1; overflow: auto; padding: 22px 28px; }
+  main.gridmode > .grid { display: block; }
+  .gridhead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 18px; }
+  .gridhead .gt { font-weight: 600; font-size: 17px; }
+  .gridhead .gf { color: var(--mute); }
+  .tiles { display: grid; gap: 22px; align-content: start; }
+  .tile { border-radius: 18px; padding: 12px; background: var(--panel); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  .tile:hover { transform: translateY(-2px); box-shadow: 0 0 0 2px var(--accent); }
+  .tile.fresh { animation: fadein .45s ease-out both; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
+  .tile .shot { position: relative; }
+  .tile img, .tile .wait { width: 100%; display: block; border-radius: 12px; background: var(--cream); aspect-ratio: 720 / 330; }
+  .tile .wait { display: flex; align-items: center; justify-content: center; color: #8a7b93; background: #3a2d43; animation: breathe 1.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .55; } }
+  .tile .open { position: absolute; right: 10px; bottom: 10px; background: var(--accent); color: #fff; font-weight: 600; border-radius: 999px; padding: 3px 12px; opacity: 0; transition: opacity .15s; }
+  .tile:hover .open { opacity: 1; }
+  .tile .tn { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; margin-top: 12px; }
+  .tile .num { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 13px; }
+  .tile .tnote { color: var(--mute); margin-top: 6px; }
+
+  /* the chat: Claude's last word, then one rounded box to answer in */
+  .chat { grid-column: 1 / -1; border-top: 1px solid var(--line); background: var(--panel); padding: 10px 16px 12px; }
+  .chat .log { max-width: 100ch; max-height: 4.4em; overflow: hidden; margin-bottom: 8px; white-space: pre-wrap; }
+  .chat.open .log, .chat.asking .log { max-height: 36vh; overflow: auto; }
+  .chat .log:empty { display: none; }
+  .chat .msg { margin: 3px 0; }
+  .chat .msg.you { color: var(--mute); }
+  .chat .msg.you::before { content: "You: "; }
+  .chat .thinking { color: var(--mute); font-style: italic; }
+  .chat .msg .err { color: #ff8a9a; }
+  .chat .chip { display: inline-block; margin-left: 6px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 1px 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .chat .chip:hover { background: var(--accent); color: #fff; }
+  .chat ol.qs { margin: 6px 0 0; padding: 0; list-style: none; counter-reset: q; white-space: normal; }
+  .chat ol.qs li { counter-increment: q; display: flex; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); }
+  .chat ol.qs li::before { content: counter(q); flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--key); color: var(--ink); font-size: 11px; font-weight: 600; }
+  .chatbar { display: flex; gap: 10px; align-items: center; }
+  .chatbar #hist { width: 30px; height: 30px; padding: 0; font-size: 11px; }
+  .composer { flex: 1; display: flex; align-items: center; gap: 6px; border: 1px solid var(--line2); border-radius: 16px; padding: 4px 4px 4px 14px; background: var(--field); }
+  .composer:focus-within { border-color: var(--accent); }
+  .composer input { border: 0 !important; background: transparent !important; padding: 6px 0 !important; outline: none; }
+  .composer input:disabled { color: var(--mute); }
+  .composer #send { padding: 5px 16px; }
+  .cstat { display: inline-flex; align-items: center; gap: 6px; color: var(--mute); white-space: nowrap; }
+  .cstat i { width: 9px; height: 9px; border-radius: 50%; background: var(--line2); }
+  .cstat.on i { background: #3ec26a; box-shadow: 0 0 8px -1px #3ec26a; }
+  .cstat.busy i { animation: breathe 1.1s ease-in-out infinite; }
+  .cstat.signed-out i, .cstat.signing-in i { background: #e0a020; }
+  .cstat a { color: var(--accent); }
+  .cstat button { padding: 3px 12px; }
+  .toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 12px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 70vw; z-index: 30; box-shadow: 0 10px 30px -8px rgba(0,0,0,.6); }
+  .toast.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <div class="brand">Boppo <span>GIF studio</span></div>
+    <div class="name" id="name" title="Click to rename"></div>
+    <div class="spacer"></div>
+    <span class="status" id="status"></span>
+    <button class="gonly" id="gclose">Close</button>
+    <button class="primary gonly" id="gexp">Export batch</button>
+    <button class="primary eonly" id="export">Export GIF</button>
+  </header>
+
+  <aside class="list">
+    <h3>Animations <button class="plus" id="new" title="New animation">+</button></h3>
+    <div id="items"></div>
+  </aside>
+
+  <main>
+    <div class="stage">
+      <div class="side left">
+        <span class="ctx" id="ctx"></span>
+        <div class="seg" id="tools" title="What a drag on a button's row makes">
+          <button data-tool="light" class="on">Light <kbd>L</kbd></button>
+          <button data-tool="press">Press <kbd>P</kbd></button>
+        </div>
+      </div>
+      <div class="card"><canvas id="view" width="720" height="330"></canvas></div>
+      <div class="side right">
+        <span class="drawing" id="drawing">drawing…</span>
+        <button class="help" id="help" title="Keys and gestures (?)">?</button>
+      </div>
+    </div>
+    <div class="tl" id="tl"><div class="tl-inner" id="tlInner"></div></div>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <aside class="inspector" id="insp"></aside>
+
+  <section class="chat" id="chat">
+    <div class="log" id="log"></div>
+    <div class="chatbar">
+      <button id="hist" title="The whole conversation">▴</button>
+      <span class="cstat" id="cstat"></span>
+      <div class="composer">
+        <input type="text" id="say" placeholder="Ask Claude, e.g. &quot;#2 but slower&quot; or &quot;a 3-2-1 countdown from scratch&quot;">
+        <div class="seg" id="model" title="Sonnet is quicker; Opus takes longer and has more taste"><button data-m="sonnet">Sonnet</button><button data-m="opus">Opus</button></div>
+        <button class="primary" id="send">Send</button>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="pop" id="helpPop" hidden>
+  <h4>Keys</h4>
+  <div class="keys">
+    <span><kbd>Space</kbd></span><span>play, pause</span>
+    <span><kbd>L</kbd> <kbd>P</kbd></span><span>a drag on a row makes a light, or a press</span>
+    <span><kbd>⌫</kbd></span><span>delete</span>
+    <span><kbd>⌘D</kbd></span><span>duplicate</span>
+    <span><kbd>⌘C</kbd> <kbd>⌘V</kbd></span><span>copy, paste at the playhead</span>
+    <span><kbd>←</kbd> <kbd>→</kbd></span><span>nudge a frame (<kbd>⇧</kbd> a second)</span>
+    <span><kbd>↑</kbd> <kbd>↓</kbd></span><span>move to the row above, or below</span>
+    <span><kbd>⇧</kbd> click</span><span>add to the selection</span>
+    <span><kbd>⌘Z</kbd> <kbd>⇧⌘Z</kbd></span><span>undo, redo</span>
+    <span><kbd>?</kbd></span><span>this list</span>
+  </div>
+  <h4>The timeline</h4>
+  <p>Drag on a row to add, drag a light to move it, its edges to resize; <kbd>⌥</kbd> drag copies. Drag the Still flag to pick the still.</p>
+  <p>Each frame is drawn by the boppo-gif skill's tablet drawing, at the tablet's 10 frames a second.</p>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="application/json" id="format">__FORMAT__</script>
+<script src="/studio-doc.js"></script>
+<script src="/studio-timeline.js"></script>
+<script src="/studio-session.js"></script>
+<script>
+const LABEL = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--label"));   // the rows' name column, CSS's --label
+// the format, from the server's animation.py (it fills this page's #format): Boppo's named colors, the
+// effects, the lights, the limits, an empty animation and a new block's values
+const FORMAT = JSON.parse(document.getElementById("format").textContent);
+const TL = studioTimeline(FORMAT), FPS = TL.FPS;   // the timeline's layout and its edits, inside the limits: studio-timeline.js
+const PALETTE = FORMAT.palette, SIDES = FORMAT.lights;
+const EFFECTS = Object.fromEntries(FORMAT.effects.map(e => [e, e[0].toUpperCase() + e.slice(1)]));   // { steady: "Steady", … }
+const $ = s => document.querySelector(s);
+const api = (path, opt = {}) => fetch(path, { signal: AbortSignal.timeout(15000), ...opt }).then(r => { if (!r.ok) return r.json().catch(() => ({})).then(e => { throw new Error(e.error || r.status) }); return r; });
+
+let sel = { kind: null, ids: new Set() };      // kind: blocks | presses | captions; ids: indexes
+let tool = "light", color = [0,255,0];
+let t = 0, playing = false, pxs = 120;           // px a second
+let sheet = null, drawPending = 0, clip = null;
+
+// ---------- the animation --------------------------------------------------------------
+const r1 = v => Math.round(v * 10) / 10;
+const fresh = () => structuredClone(FORMAT.fresh);
+const block = x => ({ ...structuredClone(FORMAT.block), ...x });   // a new light (a block): x over the server's defaults
+function starter() {
+  const a = fresh(); a.seconds = 4.0; a.still = 2.0;
+  [0,1,2,3,4].forEach((b, i) => a.blocks.push(block({ button: b, start: r1(i * 0.3), end: 3.0, color: [0,0,255], fade_in: 0.2 })));
+  a.blocks.push(block({ button: 9, start: 0, end: 4.0, color: [0,255,0], effect: "pulse" }));
+  a.presses.push({ button: 9, start: 3.0, end: 3.4 });
+  a.captions.push({ start: 0, end: 1.6, text: "Here they come!" });
+  return a;
+}
+// The server cleans every animation (animation.py) and decides its defaults; this only keeps its values out
+// of the page's markup, as numbers, colors of three numbers, text and known lights
+const numOr = (v, d = 0) => Number.isFinite(+v) ? +v : d;
+const rgb3 = c => [0, 1, 2].map(k => numOr(Array.isArray(c) ? c[k] : 0));
+function normalize(a) {
+  const objs = v => (Array.isArray(v) ? v : []).filter(x => x && typeof x === "object");
+  a.seconds = numOr(a.seconds); a.blocks = objs(a.blocks); a.presses = objs(a.presses); a.captions = objs(a.captions); a.still = numOr(a.still);
+  for (const x of [...a.blocks, ...a.presses, ...a.captions]) { x.start = numOr(x.start); x.end = numOr(x.end); }
+  for (const p of a.presses) p.button = numOr(p.button);
+  for (const c of a.captions) c.text = String(c.text ?? "");
+  for (const b of a.blocks) {
+    b.button = numOr(b.button); b.color = rgb3(b.color); b.level = numOr(b.level); b.every = numOr(b.every);
+    b.color2 = b.color2 ? rgb3(b.color2) : null; b.fade_in = numOr(b.fade_in); b.fade_out = numOr(b.fade_out);
+    b.lights = Array.isArray(b.lights) ? b.lights.filter(s => SIDES.includes(s)) : [];
+  }
+  return a;
+}
+// the open animation, its undo, its save and the Pick rule: studio-doc.js; anim is its Animation
+const doc = studioDoc({ put: (n, json) => api(`/api/anim/${encodeURIComponent(n)}`, { method: "PUT", body: json }).then(r => r.json()).then(r => r.mtime) });
+Object.defineProperty(window, "anim", { get: () => doc.anim });
+// what the stage shows (a batch's grid or the open animation), whose the chat is and a request's progress:
+// studio-session.js; the folder's poll and the request's feed it, the views below draw it
+const session = studioSession();
+doc.on(what => {
+  if (what === "status") { status(doc.state); if (doc.state === "failed") toast("Not saved: " + doc.error, 5000); return; }
+  if (what === "load") return;                   // open() draws it
+  if (what === "undo" || what === "redo" || what === "cancel") { sel = { kind: null, ids: new Set() }; if (anim.seconds !== shownLength) fitZoom(); }   // a length undone: the zoom fits it
+  renderTimeline(); requestDraw();
+  if (what !== "preview") { renderInspector(); renderCtx(); }   // a gesture redraws the panel when it ends
+});
+function status(s) {                   // saved and unsaved are a dot; the rest in words
+  const e = $("#status"), dot = s === "saved" || s === "unsaved";
+  e.className = "status" + (dot ? " dot " + s : ""); e.textContent = dot ? "" : s === "failed" ? "not saved" : s;
+  e.title = s === "saved" ? "Saved" : s === "unsaved" ? "Saving…" : s === "failed" ? doc.error : "";
+}
+function toast(s, ms = 2600) { const e = $("#toast"); e.textContent = s; e.classList.add("show"); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove("show"), ms); }
+
+// ---------- drawing, by the server's tablet drawing --------------------------------------
+let drawTimer = 0, drawSeq = 0;
+function requestDraw() { clearTimeout(drawTimer); drawTimer = setTimeout(drawNow, 90); $("#drawing").classList.add("show"); }
+async function drawNow() {
+  const seq = ++drawSeq;
+  try {
+    const r = await api("/api/frames", { method: "POST", body: JSON.stringify(anim) });
+    const n = +r.headers.get("X-Frames"), cols = +r.headers.get("X-Cols"), w = +r.headers.get("X-W"), h = +r.headers.get("X-H");
+    const bmp = await createImageBitmap(await r.blob());
+    if (seq !== drawSeq) return;
+    sheet = { bmp, n, cols, w, h }; paint();
+  } catch (e) { toast("Drawing failed: " + e.message, 5000); }
+  if (seq === drawSeq) $("#drawing").classList.remove("show");
+}
+function paint() {
+  const c = $("#view"), g = c.getContext("2d");
+  if (sheet) {
+    const i = Math.min(sheet.n - 1, Math.floor(t * FPS + 1e-6));
+    g.drawImage(sheet.bmp, (i % sheet.cols) * sheet.w, Math.floor(i / sheet.cols) * sheet.h, sheet.w, sheet.h, 0, 0, c.width, c.height);
+  }
+  const time = $("#time"); if (time) time.textContent = `${t.toFixed(1)} / ${anim.seconds.toFixed(1)} s`;
+  const head = $("#head"); if (head) head.style.left = `calc(var(--label) + ${t * pxs}px)`;
+}
+let last = 0;
+function tick(now) {
+  if (playing) {
+    t += (now - last) / 1000; if (t >= anim.seconds) t = t % anim.seconds;
+    paint();
+  }
+  last = now; requestAnimationFrame(tick);
+}
+function setPlaying(p) {
+  playing = p; const b = $("#play"); if (!b) return;
+  b.textContent = p ? "❚❚" : "▶"; b.title = p ? "Pause (Space)" : "Play (Space)"; b.classList.toggle("on", p);
+}
+
+// ---------- the timeline -----------------------------------------------------------------
+const css = (rgb, k = 1) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${0.35 + 0.65 * k})`;
+const ROWS = [
+  { group: "Top row" }, ...[0,1,2,3,4].map(b => ({ button: b })),
+  { group: "Bottom row · the kid's side" }, ...[5,6,7,8,9].map(b => ({ button: b })),
+  { group: "Captions · the line being said" }, { captions: true },
+];
+function fitZoom() {
+  const w = $("#tl").clientWidth - LABEL - 30;
+  pxs = Math.max(40, Math.min(400, w / Math.max(1, anim.seconds)));
+}
+function blockStyle(b) {
+  const c = b.color, k = b.level;
+  if (b.effect === "pulse") return `background: linear-gradient(90deg, ${css(c, k)}, ${css(c, k * .25)}, ${css(c, k)}); background-size: ${b.every * pxs}px 100%;`;
+  if (b.effect === "flash") { const c2 = b.color2 ? css(b.color2, k) : "rgba(255,255,255,.18)"; const h = b.every * pxs / 2;
+    return `background: repeating-linear-gradient(90deg, ${css(c, k)} 0 ${h}px, ${c2} ${h}px ${2 * h}px);`; }
+  if (b.effect === "spin") return `background: ${css(c, k)} radial-gradient(circle, rgba(255,255,255,.55) 2px, transparent 2.5px) 0 50% / ${b.every * pxs / 4}px 100%;`;
+  let bg = css(c, k);
+  if (b.fade_in || b.fade_out) {
+    const L = (b.end - b.start), fi = Math.min(1, b.fade_in / L) * 100, fo = 100 - Math.min(1, b.fade_out / L) * 100;
+    bg = `linear-gradient(90deg, ${css(c, 0)} 0%, ${css(c, k)} ${fi}%, ${css(c, k)} ${fo}%, ${css(c, 0)} 100%)`;
+  }
+  return `background: ${bg};`;
+}
+// its label dark on a bright light, white on a deep one
+const ink = b => (0.299 * b.color[0] + 0.587 * b.color[1] + 0.114 * b.color[2]) * (0.35 + 0.65 * b.level) > 120 ? "dark" : "light";
+let moveGhosts = null;                 // where the lights being moved were, while they move
+let shownLength = 0;                   // the length the timeline was last drawn at
+function renderTimeline() {
+  const inner = $("#tlInner"), W = anim.seconds * pxs; shownLength = anim.seconds;
+  inner.style.width = `calc(var(--label) + ${W + 40}px)`;
+  let h = `<div class="ruler" id="ruler" style="width:${W + 40}px"><div class="corner"><button id="play">▶</button><span class="time" id="time"></span></div>`;
+  for (let i = 0; i <= Math.round(anim.seconds * FPS); i++) {
+    const s = i / FPS, major = i % FPS === 0, half = i % 5 === 0;
+    if (!major && !half && pxs < 90) continue;
+    h += `<div class="tick ${major ? "major" : ""}" style="left:${s * pxs}px;${major ? "" : half ? "height:40%" : "height:22%"}">${major ? `<span>${s.toFixed(0)}s</span>` : ""}</div>`;
+  }
+  h += `<div class="still" id="stillFlag" style="left:${anim.still * pxs - 1}px" title="The still, its PNG: drag to move">Still</div>`;
+  h += `<div class="end" id="end" style="left:${W}px" title="Drag to change the length"></div></div>`;
+  let alt = false;
+  for (const r of ROWS) {
+    if (r.group) { h += `<div class="group"><span>${r.group}</span></div>`; alt = false; continue; }
+    const past = `<div class="past" style="left:${W}px;right:-40px"></div>`;
+    if (r.captions) {
+      h += `<div class="row" data-captions="1"><div class="lab">Lines</div>${past}`;
+      anim.captions.forEach((c, i) => h += `<div class="cap ${isSel("captions", i) ? "sel" : ""}" data-kind="captions" data-i="${i}" style="left:${c.start * pxs}px;width:${(c.end - c.start) * pxs}px">${esc(c.text || "")}</div>`);
+      h += `</div>`; continue;
+    }
+    const L = TL.layout(anim.blocks, r.button);
+    h += `<div class="row ${alt ? "alt" : ""}" data-button="${r.button}" style="height:${L.height}px"><div class="lab"><span class="dot" style="${dotStyle(r.button)}"></span>${r.button}</div>${past}`;
+    for (const { i, depth, top, height: ht, font } of L.lights) {
+      const b = anim.blocks[i], w = (b.end - b.start) * pxs;
+      const lab = [b.effect !== "steady" ? EFFECTS[b.effect] : "", b.lights.length < 4 ? b.lights.map(s => s[0].toUpperCase()).join("") : ""].filter(Boolean).join(" · ");
+      h += `<div class="blk ${ink(b)} ${depth ? "inset" : ""} ${isSel("blocks", i) ? "sel" : ""}" data-kind="blocks" data-i="${i}" style="left:${b.start * pxs}px;width:${w}px;top:${top}px;height:${ht}px;line-height:${ht}px;font-size:${font}px;--z:${1 + 2 * depth};--c:rgb(${b.color});${blockStyle(b)}"><span class="fx">${w > 40 && ht >= 9 ? lab : ""}</span></div>`;
+    }
+    anim.presses.forEach((p, i) => { if (p.button !== r.button) return;
+      h += `<div class="prs ${isSel("presses", i) ? "sel" : ""}" data-kind="presses" data-i="${i}" title="A press" style="left:${p.start * pxs}px;width:${Math.max(4, (p.end - p.start) * pxs)}px"></div>`; });
+    for (const g of moveGhosts || []) if (g.button === r.button)
+      h += g.kind === "presses" ? `<div class="ghost" style="left:${g.start * pxs}px;width:${(g.end - g.start) * pxs}px;bottom:2px;height:5px"></div>`
+        : `<div class="ghost" style="left:${g.start * pxs}px;width:${(g.end - g.start) * pxs}px;top:4px;height:22px;--c:rgb(${g.color})"></div>`;
+    h += `</div>`; alt = !alt;
+  }
+  h += `<div class="ghost" id="ghost" hidden></div><div class="head" id="head"></div>`;
+  inner.innerHTML = h; setPlaying(playing); $("#play").onclick = () => setPlaying(!playing); paint();
+}
+function dotStyle(button) {
+  const b = anim.blocks.filter(b => b.button === button && b.start <= t && t < b.end).pop();
+  return b ? `background:${css(b.color, b.level)};box-shadow:0 0 6px rgb(${b.color})` : "";
+}
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const isSel = (k, i) => sel.kind === k && sel.ids.has(i);
+function select(kind, ids) { sel = { kind, ids: new Set(ids) }; renderTimeline(); renderInspector(); }
+
+// pointer: create, move, resize, scrub; the cursor and a ghost say what a drag would do
+const tl = $("#tl");
+function timeAt(e) { const r = $("#tlInner").getBoundingClientRect(); return Math.max(0, (e.clientX - r.left - LABEL) / pxs); }
+function rowAt(e) {
+  const el = document.elementsFromPoint(e.clientX, e.clientY).find(x => x.classList && x.classList.contains("row"));
+  return el ? (el.dataset.captions ? "captions" : +el.dataset.button) : null;
+}
+const edgeOf = (item, e) => { const r = item.getBoundingClientRect(); return e.clientX - r.left < 7 ? "start" : r.right - e.clientX < 7 ? "end" : null; };
+tl.addEventListener("pointermove", e => {
+  if (dragging) return;
+  const item = e.target.closest("[data-kind]"), g = $("#ghost");
+  if (item) item.style.cursor = edgeOf(item, e) ? "col-resize" : "";
+  const row = !item && !e.target.closest(".lab, .ruler") ? e.target.closest(".row") : null;
+  if (!g) return;
+  const cap = !!(row && row.dataset.captions), press = !cap && tool === "press";
+  const p = row && TL.place(anim, cap ? "captions" : press ? "presses" : "blocks", timeAt(e));   // where a new one would go
+  if (!p) { g.hidden = true; return; }
+  g.hidden = false; g.className = "ghost" + (cap ? " cap-ghost" : "");
+  g.style.left = `${LABEL + p.start * pxs}px`; g.style.width = `${(p.end - p.start) * pxs}px`;
+  g.style.top = `${row.offsetTop + (press ? row.offsetHeight - 7 : cap ? 5 : 4)}px`; g.style.height = press ? "5px" : cap ? "24px" : "22px";
+  g.style.setProperty("--c", cap ? "var(--mute)" : press ? "var(--ink)" : `rgb(${color})`);
+});
+tl.addEventListener("pointerleave", () => { const g = $("#ghost"); if (g) g.hidden = true; });
+tl.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  const target = e.target, t0 = timeAt(e);
+  if (target.closest(".corner")) return;
+  if (target.id === "end") return drag(e, ev => doc.preview(a => TL.setLength(a, timeAt(ev))), true);
+  if (target.id === "stillFlag") return drag(e, ev => doc.preview(a => TL.setStill(a, timeAt(ev))), true);
+  if (target.closest(".ruler")) { setPlaying(false); const go = ev => { t = Math.min(anim.seconds - 1e-6, timeAt(ev)); paint(); renderDots(); }; go(e); return drag(e, go, false); }
+  const item = target.closest("[data-kind]");
+  if (item) {
+    const kind = item.dataset.kind, i = +item.dataset.i;
+    if (e.shiftKey) { if (sel.kind === kind && sel.ids.has(i)) sel.ids.delete(i); else { if (sel.kind !== kind) sel = { kind, ids: new Set() }; sel.ids.add(i); } renderTimeline(); renderInspector(); return; }
+    const edge = edgeOf(item, e);          // before select() re-draws the item away
+    if (!isSel(kind, i)) select(kind, [i]);
+    let g = TL.grab(anim, kind, sel.ids), copied = false;   // where they were: each move is from there
+    const row0 = rowAt(e);
+    if (!edge && kind !== "captions") moveGhosts = g.items.map(o => ({ kind, ...o, color: anim[kind][o.i].color }));
+    drag(e, ev => doc.preview(a => {
+      if (e.altKey && !copied && !edge) { copied = true; moveGhosts = null; g = TL.clone(a, g); sel.ids = new Set(g.items.map(o => o.i)); }   // ⌥-drag: leave the originals, move copies
+      const dt = timeAt(ev) - t0, row = rowAt(ev);
+      if (edge) TL.resize(a, g, edge, dt);
+      else TL.move(a, g, dt, typeof row === "number" && typeof row0 === "number" ? row - row0 : 0);
+    }), true);
+    return;
+  }
+  const row = rowAt(e), kind = row === "captions" ? "captions" : tool === "press" ? "presses" : "blocks";
+  if (row === null || target.closest(".lab") || !TL.place(anim, kind, t0)) return;   // where the ghost shows, nowhere else
+  setPlaying(false);
+  doc.begin();
+  const i = TL.create(anim, kind, row, t0, kind === "blocks" ? block({ color: [...color] }) : kind === "captions" ? { text: "" } : {});
+  select(kind, [i]); let moved = false;
+  drag(e, ev => { const t1 = timeAt(ev); if (TL.snap(t1) === TL.snap(t0) && !moved) return; moved = true;
+    doc.preview(a => TL.stretch(a, kind, i, t0, t1)); }, true,
+    () => { if (kind === "captions") setTimeout(() => { const f = $("#capText"); f && f.focus(); }, 0); });
+});
+let dragging = false, endDrag = null, openAfter = null;   // openAfter: an open asked for mid-drag, run as it ends
+// edits: one gesture, its moves doc.preview()s. It ends as shown on a pointerup, a pointercancel, the window's
+// blur or a move with the button up (its pointerup missed); endDrag(false), Escape, takes it back
+function drag(e, move, edits, done) {
+  if (edits) doc.begin();
+  dragging = true;
+  const step = ev => ev.buttons & 1 ? move(ev) : end(true), up = () => end(true), ENDS = ["pointerup", "pointercancel", "blur"];
+  const end = keep => {
+    dragging = false; endDrag = null; const ghosts = moveGhosts; moveGhosts = null;
+    window.removeEventListener("pointermove", step); ENDS.forEach(t => window.removeEventListener(t, up));
+    if (!(edits && (keep ? doc.commit() : doc.cancel())) && ghosts) renderTimeline();   // a click alone changes nothing: no undo step, no pick, no save
+    if (keep && done) done();
+    const o = openAfter; openAfter = null; if (o) o();
+  };
+  window.addEventListener("pointermove", step); ENDS.forEach(t => window.addEventListener(t, up));
+  endDrag = end;
+}
+function renderDots() { document.querySelectorAll(".row[data-button]").forEach(r => { const d = r.querySelector(".dot"); d.setAttribute("style", dotStyle(+r.dataset.button)); }); }
+
+// ---------- the panel on the right ---------------------------------------------------------
+function swatches(cur, id, none) {
+  let h = `<div class="swatches" id="${id}">`;
+  if (none) h += `<div class="sw none ${cur ? "" : "on"}" data-c="" title="Off"></div>`;
+  for (const [n, c] of PALETTE) h += `<div class="sw ${cur && cur.join() === c.join() ? "on" : ""}" data-c="${c.join()}" title="${colorName(c)}" style="background:rgb(${c});--c:rgb(${c})"></div>`;
+  return h + `</div>`;
+}
+function colorName(c) {                // "Spring green"; a color off Boppo's list has none
+  const p = PALETTE.find(([, x]) => x.join() === c.join());
+  return p ? p[0][0] + p[0].slice(1).toLowerCase().replace("_", " ") : "";
+}
+function num(id, label, v, step = 0.1, min = 0) { return `<div><label class="unit-l" for="${id}">${label}</label><div class="unit"><input type="number" id="${id}" value="${v}" step="${step}" min="${min}"><i>s</i></div></div>`; }
+const title = (s, del = true) => `<div class="ptitle"><h3>${s}</h3>${del ? `<button class="quiet" id="rm">Delete</button>` : ""}</div>`;
+// the lights control: the button drawn with its four lights as arcs around it, a lit one glowing
+const ARC = (a0, a1, r = 40) => { const p = a => [50 + r * Math.cos(a * Math.PI / 180), 50 + r * Math.sin(a * Math.PI / 180)];
+  const [x0, y0] = p(a0), [x1, y1] = p(a1); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
+const ARCS = { top: ARC(-124, -56), right: ARC(-34, 34), bottom: ARC(56, 124), left: ARC(146, 214) };
+function ring(b) {
+  const lit = ["top", "right", "bottom", "left"].filter(s => b.lights.includes(s));
+  const say = lit.length === 4 ? "All four lit" : lit.map(s => s[0].toUpperCase() + s.slice(1)).join(", ") + " lit";
+  return `<div class="ring" id="sides" style="--c:rgb(${b.color})"><svg viewBox="0 0 100 100"><circle class="face" cx="50" cy="50" r="27"/>
+    ${Object.entries(ARCS).map(([s, d]) => `<path data-s="${s}" class="${b.lights.includes(s) ? "on" : "off"}" d="${d}"><title>${s}</title></path>`).join("")}</svg>
+    <div class="say"><b>${say}</b>Click a light to turn it on or off</div></div>`;
+}
+function renderInspector() {           // the slider keeps its focus, for ← → to step on: each step's commit redraws it
+  const lvl = document.activeElement && document.activeElement.id === "lvl";
+  drawInspector(); if (lvl && $("#lvl")) $("#lvl").focus();
+}
+function drawInspector() {
+  const el = $("#insp"), items = sel.kind ? [...sel.ids].map(i => anim[sel.kind][i]).filter(Boolean) : [];
+  if (!items.length) {
+    el.innerHTML = title("Animation", false) + `
+      <div class="sect"><div class="field two">${num("aSec", "Length", anim.seconds, 0.1, FORMAT.seconds[0])}${num("aStill", "Still at", anim.still)}</div></div>
+      <div class="sect"><h4>New lights in</h4>${swatches(color, "pick")}</div>`;
+    $("#aSec").onchange = ev => doc.edit(a => { TL.setLength(a, +ev.target.value); fitZoom(); });
+    $("#aStill").onchange = ev => doc.edit(a => TL.setStill(a, +ev.target.value));
+    $("#pick").onclick = ev => { const c = ev.target.dataset.c; if (c) { color = c.split(",").map(Number); renderInspector(); } };
+    return;
+  }
+  const one = items[0], k = sel.kind, n = items.length;
+  const set = f => doc.edit(() => items.forEach(f));
+  if (k === "blocks") {
+    const cn = colorName(one.color);
+    el.innerHTML = title(n > 1 ? n + " lights" : `Button ${one.button}${cn ? " · " + cn : ""}`) + `
+      <div class="sect"><h4>Color</h4>
+        <div class="field">${swatches(one.color, "col")}</div>
+        <div class="field"><label>Brightness · ${Math.round(one.level * 100)}%</label><input type="range" id="lvl" min="${FORMAT.level[0]}" max="${FORMAT.level[1]}" step="0.05" value="${one.level}"></div>
+        <div class="field"><label>Lights</label>${ring(one)}</div></div>
+      <div class="sect"><h4>Effect</h4>
+        <div class="field"><div class="seg" id="fx">${Object.entries(EFFECTS).map(([key, l]) => `<button data-fx="${key}" class="${one.effect === key ? "on" : ""}">${l}</button>`).join("")}</div></div>
+        ${one.effect !== "steady" ? `<div class="field two">${num("every", one.effect === "pulse" ? "One breath" : one.effect === "flash" ? "One flash" : "Once round", one.every)}<div></div></div>` : ""}
+        ${one.effect === "flash" ? `<div class="field"><label>Flashes to</label>${swatches(one.color2, "col2", true)}</div>` : ""}</div>
+      <div class="sect"><h4>Timing</h4>
+        <div class="field two">${num("st", "Start", one.start)}${num("en", "End", one.end)}</div>
+        <div class="field two">${num("fi", "Fade in", one.fade_in)}${num("fo", "Fade out", one.fade_out)}</div></div>`;
+    $("#col").onclick = ev => { const c = ev.target.dataset.c; if (c) set(b => b.color = c.split(",").map(Number)); };
+    $("#lvl").oninput = ev => { doc.preview(() => items.forEach(b => b.level = +ev.target.value)); ev.target.previousElementSibling.textContent = `Brightness · ${Math.round(ev.target.value * 100)}%`; };
+    $("#lvl").onchange = () => doc.commit();       // the slide, one undo step
+    $("#fx").onclick = ev => { const f = ev.target.dataset.fx; if (f) set(b => b.effect = f); };
+    const ev_ = $("#every"); if (ev_) ev_.onchange = ev => set(b => b.every = Math.min(FORMAT.every[1], Math.max(FORMAT.every[0], r1(+ev.target.value))));
+    const c2 = $("#col2"); if (c2) c2.onclick = ev => { const c = ev.target.dataset.c; if (c !== undefined) set(b => b.color2 = c ? c.split(",").map(Number) : null); };
+    $("#sides").onclick = ev => { const p = ev.target.closest("[data-s]"); if (!p) return; const s = p.dataset.s, on = !one.lights.includes(s);
+      set(b => { b.lights = on ? SIDES.filter(x => b.lights.includes(x) || x === s) : b.lights.filter(x => x !== s); if (!b.lights.length) b.lights = [s]; }); };
+    $("#fi").onchange = ev => set(b => b.fade_in = Math.max(0, r1(+ev.target.value)));
+    $("#fo").onchange = ev => set(b => b.fade_out = Math.max(0, r1(+ev.target.value)));
+  } else if (k === "presses") {
+    el.innerHTML = title(n > 1 ? n + " presses" : `Button ${one.button} · Press`) + `
+      <div class="sect"><p class="muted" style="margin:0 0 12px">The button pushed in, from its press to its release.</p>
+      <div class="field two">${num("st", "Press", one.start)}${num("en", "Release", one.end)}</div></div>`;
+  } else {
+    el.innerHTML = title(n > 1 ? n + " lines" : "Line") + `
+      <div class="sect"><div class="field"><label for="capText">What's said</label><input type="text" id="capText" maxlength="${FORMAT.text}" value="${esc(one.text || "")}" placeholder="Pick your color!"></div>
+      <div class="field two">${num("st", "Start", one.start)}${num("en", "End", one.end)}</div></div>`;
+    $("#capText").oninput = ev => doc.preview(() => items.forEach(c => c.text = ev.target.value));
+    $("#capText").onchange = () => doc.commit();   // the typing, one undo step
+  }
+  const st = $("#st"), en = $("#en");
+  const i0 = [...sel.ids][0];
+  if (st && n === 1) st.onchange = ev => doc.edit(a => TL.setStart(a, k, i0, +ev.target.value));
+  if (en && n === 1) en.onchange = ev => doc.edit(a => TL.setEnd(a, k, i0, +ev.target.value));
+  if (n > 1) { st && (st.disabled = true); en && (en.disabled = true); }
+  $("#rm").onclick = removeSel;
+}
+function removeSel() {
+  if (!sel.kind || !sel.ids.size) return;
+  const { kind, ids } = sel; sel = { kind: null, ids: new Set() };
+  doc.edit(a => { a[kind] = a[kind].filter((_, i) => !ids.has(i)); });
+}
+
+// ---------- keys, and the help behind ? -------------------------------------------------------
+function toggleHelp(show = $("#helpPop").hidden) {
+  const p = $("#helpPop"); p.hidden = !show; if (!show) return;
+  const r = $("#help").getBoundingClientRect();
+  p.style.top = `${Math.max(60, r.bottom - p.offsetHeight)}px`; p.style.left = `${r.left - p.offsetWidth - 12}px`;
+}
+$("#help").onclick = () => toggleHelp();
+document.addEventListener("pointerdown", e => { if (!$("#helpPop").hidden && !e.target.closest("#helpPop, #help")) toggleHelp(false); });
+document.addEventListener("keydown", e => {
+  const cmd = e.metaKey || e.ctrlKey;
+  if (dragging) { if (e.key === "Escape") endDrag(false); if (!cmd || /^[dz]$/i.test(e.key)) e.preventDefault(); return; }   // no key edits mid-drag; Escape takes it back
+  if (e.target.id === "say") return;
+  if (e.target.matches("input, textarea")) { if (e.key === "Enter" || e.key === "Escape") e.target.blur(); return; }
+  if (e.key === "?") { e.preventDefault(); toggleHelp(); }
+  else if (e.key === "Escape" && !$("#helpPop").hidden) toggleHelp(false);
+  else if (session.grid !== null || !anim) { if (cmd && e.key === "d") e.preventDefault(); }   // the grid hides the animation: no key edits it
+  else if (e.key === " ") { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); removeSel(); }
+  else if (cmd && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? doc.redo() : doc.undo(); }
+  else if (cmd && e.key === "d") { e.preventDefault(); if (!sel.ids.size) return; const k = sel.kind; let ids;
+    doc.edit(a => ids = TL.duplicate(a, k, sel.ids)); select(k, ids); }
+  else if (cmd && e.key === "c") { if (sel.ids.size) clip = { kind: sel.kind, items: [...sel.ids].map(i => JSON.parse(JSON.stringify(anim[sel.kind][i]))) }; }
+  else if (cmd && e.key === "v") { if (!clip) return; let ids; doc.edit(a => ids = TL.paste(a, clip, t)); select(clip.kind, ids); }
+  else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !cmd && !e.altKey && !e.shiftKey && sel.ids.size && sel.kind !== "captions") {
+    e.preventDefault(); doc.edit(a => TL.nudge(a, sel.kind, sel.ids, 0, e.key === "ArrowUp" ? -1 : 1)); }   // the next row: captions have none
+  else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); const d = (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 1 : TL.FRAME);
+    if (sel.ids.size) doc.edit(a => TL.nudge(a, sel.kind, sel.ids, d));
+    else { setPlaying(false); t = Math.max(0, Math.min(anim.seconds - 1e-6, TL.snap(t) + d)); paint(); renderDots(); } }
+  else if (e.key === "l") setTool("light");
+  else if (e.key === "p") setTool("press");
+  else if (e.key === "Escape") select(null, []);
+});
+function setTool(x) { tool = x; document.querySelectorAll("#tools button").forEach(b => b.classList.toggle("on", b.dataset.tool === x)); }
+$("#tools").onclick = e => { const b = e.target.closest("button"); if (b) setTool(b.dataset.tool); };
+
+// ---------- the folder: the animations, kept in sync with the disk ------------------------
+let fails = 0, poll = 0, listAsked = 0, listTaken = 0;
+const openGroups = new Set();
+async function refreshList() {
+  const q = ++listAsked; let l;
+  try { l = await api("/api/list").then(r => r.json()); fails = 0; }
+  catch (e) {                          // the studio stopped: say so, and stop asking after three
+    if (++fails === 1) console.error("studio:", e.message);
+    status(fails >= 3 ? "studio stopped" : "no answer"); if (fails >= 3) clearInterval(poll); return;
+  }
+  if (q < listTaken) return; listTaken = q;          // older than an answer already taken
+  session.setList(l);
+  const n = session.name, cur = l.find(x => x.name === n);
+  if (cur && cur.mtime > doc.mtime + 0.01 && !doc.dirty && !doc.gesture && !dragging) {
+    if (await open(n, { keepT: true, stay: true })) toast(`${n} changed on disk: reloaded`);   // by someone else (Claude, say)
+  }
+  sync();
+}
+function preview(c) {
+  const q = `/api/${c.hover ? "thumb" : "still"}/${encodeURIComponent(c.dataset.name)}?${c.dataset.mtime}`;
+  const img = c.querySelector("img"); if (!img.src.endsWith(q)) img.src = q;
+}
+function itemNode(x, have, cur) {
+  let c = have.get(x.name);
+  if (!c) {
+    c = document.createElement("div"); c.className = "item"; c.dataset.name = x.name;
+    c.innerHTML = `<img alt=""><div><div class="n"></div><div class="sub"><div class="score"></div><span class="len"></span></div></div>
+      <span class="acts"><button class="dup" title="Duplicate">⧉</button><button class="del" title="Delete">✕</button></span>`;
+    c.onclick = () => open(x.name);
+    c.querySelector(".dup").onclick = e => { e.stopPropagation(); dupAnim(x.name); };
+    c.querySelector(".del").onclick = e => { e.stopPropagation(); delAnim(x.name); };
+    c.onmouseenter = () => { c.hover = true; preview(c); };   // its still, playing while the mouse is on it
+    c.onmouseleave = () => { c.hover = false; preview(c); };
+  }
+  if (c.dataset.mtime != x.mtime) {   // the old picture stays up until the new one loads
+    c.dataset.mtime = x.mtime; preview(c);
+    const s = +x.seconds || 1;          // the strip: a thin line a button, in its light's color, across the length
+    c.querySelector(".score").innerHTML = (x.strip || []).map(([b, a, z, col]) =>
+      `<i style="left:${numOr(a) / s * 100}%;width:${(numOr(z) - numOr(a)) / s * 100}%;top:${1 + numOr(b) * 2}px;background:rgb(${rgb3(col)})"></i>`).join("");
+    c.querySelector(".len").textContent = x.seconds ? `${(+x.seconds).toFixed(1)} s` : "";
+  }
+  const b = x.batch;
+  c.querySelector(".n").innerHTML = (b ? `<span class="num">#${numOr(b.n, "")}</span>` : "") + esc(x.name) + (b && b.picked ? ` <span class="star">★</span>` : "");
+  c.querySelector(".n").title = x.name;
+  c.classList.toggle("cur", x.name === cur);
+  return c;
+}
+let listSig = "";
+function renderList() {
+  const box = $("#items"), cur = session.grid === null ? session.name : null;
+  const curBatch = anim && anim.batch ? anim.batch.id : null;
+  if (curBatch) openGroups.add(curBatch);
+  const sig = JSON.stringify([session.list, cur, [...openGroups]]);
+  if (sig === listSig) return; listSig = sig;
+  const have = new Map([...box.querySelectorAll(".item")].map(c => [c.dataset.name, c]));
+  box.innerHTML = "";
+  const groups = new Map();           // a batch folds to one line, where its newest version would sit
+  for (const x of session.list) {
+    if (!x.batch) { box.appendChild(itemNode(x, have, cur)); continue; }
+    let g = groups.get(x.batch.id);
+    if (!g) {
+      g = { el: document.createElement("div"), members: [] }; groups.set(x.batch.id, g); box.appendChild(g.el);
+      const id = x.batch.id; g.el.className = "bgroup" + (openGroups.has(id) ? " open" : "");
+      g.el.innerHTML = `<div class="bhead"><span class="tw">${openGroups.has(id) ? "▾" : "▸"}</span><span class="bt" title="Show the batch as a grid"></span><span class="bc"></span></div><div class="members"></div>`;
+      g.el.querySelector(".bt").textContent = `"${x.batch.request}"`;
+      g.el.querySelector(".tw").onclick = e => { e.stopPropagation(); openGroups.has(id) ? openGroups.delete(id) : openGroups.add(id); renderList(); };
+      g.el.querySelector(".bt").onclick = () => showGrid(id);
+    }
+    g.members.push(x);
+  }
+  for (const g of groups.values()) {
+    g.members.sort((a, b) => a.batch.n - b.batch.n);
+    g.el.querySelector(".bc").textContent = g.members.some(x => x.batch.picked) ? `${g.members.length} ★` : g.members.length;
+    const m = g.el.querySelector(".members"); g.members.forEach(x => m.appendChild(itemNode(x, have, cur)));
+  }
+}
+// stay: behind the grid, if one's up. True once open; a failure says so and leaves the stage as it was. Never
+// under a drag: asked for mid-drag, it opens as the drag ends; a slide or typing still open ends where it is
+async function open(n, { keepT = false, stay = false } = {}) {
+  let a;
+  for (;;) {
+    if (dragging) { openAfter = () => open(n, { keepT, stay }); return false; }
+    doc.commit();
+    if (!await doc.flush()) { toast(`${session.name} isn't saved (${doc.error}): still on it`, 5000); return false; }
+    try { a = normalize(await api(`/api/anim/${encodeURIComponent(n)}`).then(r => r.json())); }
+    catch (e) { toast(`Couldn't open ${n}: ${e.message}`, 5000); return false; }
+    if (!dragging && !doc.gesture && !(doc.name && doc.dirty)) break;   // nothing begun or changed while it asked; else again
+  }
+  doc.load(n, a, (session.list.find(x => x.name === n) || {}).mtime || Date.now() / 1000);
+  stay ? session.load(n, a.batch) : session.open(n, a.batch);
+  sel = { kind: null, ids: new Set() };
+  if (!keepT) { t = 0; playing = false; }                // another animation opens paused: Play starts it
+  t = Math.min(t, anim.seconds - 1e-6);
+  sync();                                                // the stage first: the timeline fits the width it's shown at
+  fitZoom(); renderTimeline(); renderInspector(); requestDraw(); status(doc.state);
+  history.replaceState(null, "", "#" + encodeURIComponent(n));
+  return true;
+}
+async function create(n, a) {
+  await api(`/api/anim/${encodeURIComponent(n)}`, { method: "PUT", body: JSON.stringify(a) });
+  await refreshList(); await open(n);
+}
+function uniqueName(base) { let n = base, i = 2; while (session.list.some(x => x.name === n)) n = `${base} ${i++}`; return n; }
+const validName = n => /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,80}$/.test(n);
+const copyOf = a => { const c = JSON.parse(JSON.stringify(a)); delete c.batch; return c; };
+async function dupAnim(n) {
+  try { if (n === session.name && !await doc.flush()) throw new Error(`${n} isn't saved (${doc.error})`);
+    const a = await api(`/api/anim/${encodeURIComponent(n)}`).then(r => r.json()); await create(uniqueName(n + " copy"), copyOf(a)); }
+  catch (e) { toast("Duplicate failed: " + e.message); }
+}
+async function delAnim(n) {
+  if (!confirm(`Delete ${n}? (Its exported GIF stays.)`)) return;
+  if (n === session.name) await doc.flush();             // nothing left to save, as it goes
+  try { await api(`/api/anim/${encodeURIComponent(n)}`, { method: "DELETE" }); }
+  catch (e) { return toast("Delete failed: " + e.message, 5000); }   // still open, still saving
+  if (n === session.name) { doc.close(); session.closed(); }   // gone: a later save would write it back
+  await refreshList();
+  if (!session.name) { if (session.list.length) open(session.list[0].name, { stay: true }); else create("untitled", starter()); }
+}
+$("#new").onclick = () => { const n = prompt("Name the new animation", uniqueName("untitled")); if (n && validName(n)) create(n, fresh()); else if (n) toast("Letters, numbers, spaces, - _ . only"); };
+$("#name").onclick = async () => { const was = session.name; if (session.grid !== null || !was) return;
+  const n = prompt("Rename", was); if (!n || n === was) return; if (!validName(n)) return toast("Letters, numbers, spaces, - _ . only");
+  if (session.list.some(x => x.name === n)) return toast(`${n} exists already`);
+  if (!await doc.flush()) return toast(`Not renamed: ${was} isn't saved (${doc.error})`, 5000);
+  try { await api(`/api/rename/${encodeURIComponent(was)}`, { method: "POST", body: JSON.stringify({ to: n }) }); }
+  catch (e) { return toast("Rename failed: " + e.message); }
+  doc.close(); session.closed(); await refreshList(); open(n); };
+$("#export").onclick = async () => {
+  const n = session.name; if (!n) return; await doc.flush(); status("exporting…");
+  try { const r = await api(`/api/export/${encodeURIComponent(n)}`, { method: "POST", body: JSON.stringify(anim) }).then(r => r.json());
+    toast(`Wrote ${r.gif} (${r.frames} frames) and its still`, 4000); status(doc.state); }
+  catch (e) { toast("Export failed: " + e.message, 5000); status(doc.state); }
+};
+
+// ---------- the views of the session: the stage, the header's name, the rail, the way back, the chat ----------
+// each redraws only when what it shows changes, so a click can't land half on a node drawn over
+let shownGrid = null, gridSig = "", seen = new Set();   // seen: the grid's tiles already shown
+function sync() {
+  const g = session.grid;
+  if (g !== shownGrid) {
+    if (g !== null) {
+      if (shownGrid === null) { setPlaying(false); toggleHelp(false); }
+      gridSig = ""; seen = new Set(session.drawing(g) ? [] : session.versions(g).map(x => x.name));   // only arrivals fade in
+    }
+    shownGrid = g;
+    $("main").classList.toggle("gridmode", g !== null); $("#app").classList.toggle("gridmode", g !== null);
+    if (g === null && anim) { fitZoom(); renderTimeline(); requestDraw(); }
+  }
+  if (g !== null) renderGrid();
+  const head = g !== null ? session.from(g) || "" : session.name || "";
+  if ($("#name").textContent !== head) $("#name").textContent = head;
+  renderList(); renderCtx(); loadChat(); renderChat();
+}
+function showGrid(id) { session.showGrid(id); sync(); }
+
+// ---------- the grid: a batch of versions taking the whole stage, each looping --------------------
+function renderGrid() {
+  const id = session.grid, vs = session.versions(id), b = vs[0] && vs[0].batch, waiting = session.waiting(), from = session.from(id);
+  const sig = JSON.stringify([id, vs.map(x => [x.name, x.mtime, x.batch.picked, x.batch.note]), waiting, from]);
+  if (sig === gridSig) return; gridSig = sig;
+  const n = vs.length + waiting, cols = n <= 3 ? Math.max(1, n) : n === 4 ? 2 : 3;
+  let h = `<div class="gridhead"><span class="gt">${b ? `"${esc(b.request)}"` : "Claude is drawing…"}</span>
+    <span class="gf">${from ? `from ${esc(from)}` : ""}</span></div>
+    <div class="tiles" style="grid-template-columns: repeat(${cols}, 1fr);${n === 1 ? "max-width:720px" : ""}">`;
+  for (const x of vs) h += `<div class="tile ${seen.has(x.name) ? "" : "fresh"}" data-name="${esc(x.name)}"><div class="shot"><img alt="" src="/api/thumb/${encodeURIComponent(x.name)}?w=640&${x.mtime}"><span class="open">Open</span></div>
+    <div class="tn"><span class="num">#${numOr(x.batch.n, "")}</span>${esc(x.name)}${x.batch.picked ? ` <span class="star">★</span>` : ""}</div><div class="tnote">${esc(x.batch.note || "")}</div></div>`;
+  vs.forEach(x => seen.add(x.name));
+  for (let i = 0; i < waiting; i++) h += `<div class="tile"><div class="wait">drawing…</div><div class="tn">&nbsp;</div></div>`;
+  $("#grid").innerHTML = h + `</div>`;
+  $("#grid").querySelectorAll(".tile[data-name]").forEach(el => el.onclick = () => open(el.dataset.name));
+  $("#gexp").disabled = !vs.length;
+}
+$("#gclose").onclick = () => { const back = session.closeGrid(); sync(); if (back) open(back); };
+$("#gexp").onclick = async () => { const id = session.grid; if (id === null) return; status("exporting…");
+  try { const r = await api(`/api/export-batch/${encodeURIComponent(id)}`, { method: "POST", signal: AbortSignal.timeout(120000) }).then(r => r.json());
+    toast(`Wrote ${r.gif} and each version's GIF`, 4000); status(doc.state); }
+  catch (e) { toast("Export failed: " + e.message, 5000); status(doc.state); } };
+// the line above Light/Press: where a version came from, and the way back
+let ctxHtml = null;
+function renderCtx() {
+  const b = anim && anim.batch, back = session.back(), star = b && b.picked;
+  const h = !b || !back ? "" : back.grid ? `<a id="toGrid">← Back to the batch</a>${star ? ` <span class="star">★</span>` : ""}`
+    : (star ? `<span class="star">★</span> ` : `<span class="new">New from Claude</span>`) + (back.from ? `<a id="toFrom">← back to ${esc(back.from)}</a>` : "");
+  if (h === ctxHtml) return; ctxHtml = h; $("#ctx").innerHTML = h;
+  const g = $("#toGrid"); if (g) g.onclick = () => { const k = session.back(); if (k && k.grid) showGrid(k.grid); };
+  const f = $("#toFrom"); if (f) f.onclick = () => { const k = session.back(); if (k && k.from) open(k.from); };
+}
+
+// ---------- whether Claude is on: Claude Code's own sign-in ------------------------------------
+const SAY = $("#say").placeholder, ANSWER = "Type your answers, all in one message: \"1: slow, 2: yes, 3: surprise me\"";
+let claude = { state: "unknown" };
+const claudeOff = () => ["missing", "signed-out", "signing-in"].includes(claude.state);
+async function checkClaude() {
+  try { claude = await api("/api/claude").then(r => r.json()); }
+  catch (e) { claude = { state: "unknown", detail: e.message }; }
+  renderClaude(); return claude;
+}
+function renderClaude() {                // on: the dot alone; words only when something's wrong
+  const s = claude.state, el = $("#cstat");
+  el.className = "cstat " + s + (session.busy ? " busy" : "");
+  el.innerHTML = "<i></i>" + (s === "on" ? ""
+    : s === "signed-out" ? `Claude is signed out <button class="primary" id="signin">Sign in</button>`
+    : s === "signing-in" ? "Finish signing in, in the browser"
+    : s === "missing" ? `Claude Code isn't on this computer <a href="https://claude.com/claude-code" target="_blank">Get it</a>`
+    : "Claude: couldn't check");
+  el.title = s === "on" ? `Claude is on: signed in to Claude Code${claude.plan ? ` (${claude.plan})` : ""}` : claude.detail || "";
+  $("#say").disabled = claudeOff();
+  $("#say").placeholder = s === "signing-in" ? "No browser opened? Run `claude auth login` in a terminal."
+    : claudeOff() ? "Everything else in the studio works without Claude." : session.asking() ? ANSWER : SAY;
+  $("#send").disabled = claudeOff() && !session.busy;
+  const b = $("#signin"); if (b) b.onclick = signIn;
+}
+async function signIn() {                // Claude Code's sign-in opens the browser; ask until it's done
+  try { claude = await api("/api/claude/login", { method: "POST" }).then(r => r.json()); }
+  catch (e) { return toast("Sign-in didn't start: " + e.message, 5000); }
+  renderClaude();
+  const t0 = Date.now();
+  const again = async () => { if ((await checkClaude()).state === "signing-in" && Date.now() - t0 < 310000) setTimeout(again, 2000); };
+  setTimeout(again, 2000);
+}
+window.addEventListener("focus", () => { if (claude.state !== "on") checkClaude(); });
+
+// ---------- the chat box: Claude, through the Claude Code on this computer -------------------
+let model = localStorage.getItem("studio-model") || "sonnet";
+let chatWant = null;                    // the owner whose conversation is in the box, or on its way
+async function loadChat(again) {        // again: the same owner's, as saved since
+  const o = session.owner(); if (!o || o === chatWant && !again) return;
+  chatWant = o; let c;
+  try { c = await api(`/api/chat/${encodeURIComponent(o)}`).then(r => r.json()); }
+  catch (e) { c = { messages: [] }; }
+  if (session.chatLoaded(o, c)) renderChat();
+}
+// Claude's questions as numbered rows; its versions as a chip; a run that failed, its error. From the saved
+// conversation: its words as text, its role one of two
+function message(m) {
+  const str = v => typeof v === "string" ? v : "", questions = Array.isArray(m.questions) ? m.questions.map(String) : [];
+  let text = str(m.text), qs = "";
+  if (questions.length) {
+    const listed = questions.map((q, i) => `${i + 1}. ${q}`).join("\n");
+    if (text.endsWith(listed)) text = text.slice(0, -listed.length).trimEnd();
+    qs = `<ol class="qs">${questions.map(q => `<li><span>${esc(q)}</span></li>`).join("")}</ol>`;
+  }
+  const more = m.batch && m.versions ? `<a class="chip" data-batch="${esc(String(m.batch))}">${m.versions > 1 ? `Open ${numOr(m.versions)} versions` : "Open the version"}</a>` : "";
+  const err = str(m.error) ? `<div class="err">${esc(m.error)}</div>` : "";
+  return `<div class="msg ${m.role === "you" ? "you" : "claude"}">${esc(text)}${more}${qs}${err}</div>`;
+}
+let logHtml = null;
+function renderChat() {
+  const msgs = session.chat.messages || [], log = $("#log"), th = session.thinking(), busy = session.busy;
+  const shown = $("#chat").classList.contains("open") ? msgs : msgs.slice(-1).filter(m => m.role === "claude");
+  let h = shown.map(message).join("");
+  if (th) h += `<div class="msg">${esc(th.reply || "")} <span class="thinking">${th.reply ? "" : "Claude is thinking… "}<span id="secs"></span> s</span></div>`;
+  if (h !== logHtml) {                 // the seconds count on their own, below
+    logHtml = h; log.innerHTML = h; log.scrollTop = log.scrollHeight;
+    log.querySelectorAll("a[data-batch]").forEach(a => a.onclick = () => {
+      const id = a.dataset.batch, vs = session.versions(id); if (vs.length > 1) showGrid(id); else if (vs.length) open(vs[0].name); else toast("Those versions are gone"); });
+  }
+  if (th) $("#secs").textContent = Math.round((Date.now() - th.t0) / 1000);
+  $("#send").textContent = busy ? "Stop" : "Send"; $("#send").classList.toggle("primary", !busy);
+  $("#cstat").classList.toggle("busy", busy);          // the dot pulses while Claude works
+  document.querySelectorAll("#model button").forEach(b => b.classList.toggle("on", b.dataset.m === model));
+  $("#chat").classList.toggle("asking", session.asking());   // Claude's questions, listed in full till answered
+  if (!claudeOff()) $("#say").placeholder = session.asking() ? ANSWER : SAY;
+}
+async function send(text) {
+  text = (text || "").trim(); if (!text || !anim) return;
+  if (claudeOff()) return toast("Claude isn't on: see beside the chat box");
+  if (session.busy) return toast("Claude is still on the last one: Stop it first");
+  await doc.flush();
+  const q = session.request(text);
+  const body = { owner: q.owner, name: session.name, anim, message: text, request: q.request, model, playhead: t,
+    selection: sel.kind && sel.ids.size ? { kind: sel.kind, items: [...sel.ids].map(i => anim[sel.kind][i]) } : null, grid: q.grid };
+  $("#say").value = "";
+  try {
+    const r = await api("/api/chat", { method: "POST", body: JSON.stringify(body) }).then(r => r.json());
+    session.sent(q.owner, text, r.batch, Date.now()); jobFails = 0;
+    renderChat(); setTimeout(pollJob, 600);
+  } catch (e) { toast("Claude didn't start: " + e.message, 5000); }
+}
+// the request's events, asked for every 0.7 s till it's done; the session says what they change
+let jobFails = 0;
+async function pollJob() {
+  const job = session.job; if (!job || job.done) return;
+  let s;
+  try { s = await api(`/api/job?since=${job.since}`).then(r => r.json()); jobFails = 0; }
+  catch (e) {                          // the studio stopped: say so, and stop asking after three
+    if (++jobFails === 1) console.error("studio chat:", e.message);
+    if (jobFails >= 3) { session.lost(); toast("Lost the studio while Claude was working", 5000); sync(); return; }
+    return setTimeout(pollJob, 1000);
+  }
+  if (s.events.some(e => e.type === "batch" || e.type === "version" || e.type === "done")) await refreshList();   // the versions named are in it
+  const r = session.events(s);
+  for (const e of r.errors) { toast(e, 6000); checkClaude(); }   // signed out since?
+  sync();
+  if (r.open) await open(r.open);
+  if (job.done) return loadChat(true);  // the conversation as saved, Claude's reply in it
+  setTimeout(pollJob, 700);
+}
+$("#say").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); send($("#say").value); }
+  else if (e.key === "Escape") e.target.blur();
+});
+$("#send").onclick = () => { if (session.busy) api("/api/job/stop", { method: "POST" }).catch(() => {}); else send($("#say").value); };
+$("#hist").onclick = () => { const c = $("#chat").classList.toggle("open"); $("#hist").textContent = c ? "▾" : "▴"; renderChat(); if (anim && session.grid === null) { fitZoom(); renderTimeline(); } };
+$("#model").onclick = e => { const m = e.target.dataset.m; if (m) { model = m; localStorage.setItem("studio-model", m); renderChat(); } };
+
+window.addEventListener("resize", () => { if (anim && session.grid === null) { fitZoom(); renderTimeline(); } });
+
+(async () => {                          // the loops first: a file that won't open is a toast, the next one tried
+  checkClaude();
+  poll = setInterval(refreshList, 2000);
+  requestAnimationFrame(tick);
+  await refreshList();
+  const want = decodeURIComponent(location.hash.slice(1)), names = session.list.map(x => x.name);
+  if (!names.length) return create("here they come", starter()).catch(e => toast("Couldn't start one: " + e.message, 5000));
+  for (const n of names.includes(want) ? [want, ...names.filter(x => x !== want)] : names) if (await open(n)) break;
+})();
+</script>
+</body>
+</html>

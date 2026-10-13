@@ -38,13 +38,14 @@ Buttons are numbered as on the tablet: 0-4 the top row, 5-9 the bottom row (the 
 Run with the boppo-gif skill's gif.py: `gif.py check <this file> [name ...]` writes the GIFs to
 /tmp/gif-check/ and checks their length; `gif.py run <this file> [name ...]` writes them for real.
 Names pick which GIFs to write; none writes them all."""
-import os, pathlib, sys
+import importlib.util, os, pathlib, sys
 HERE = pathlib.Path(__file__).resolve().parent
 # the boppo-gif skill, the drawing and the check: where gif.py says, else where it was when this was made
 SKILL = pathlib.Path(os.environ.get("BOPPO_GIF", "{skill}"))
 sys.path.insert(0, str(SKILL))
 import gifcheck
-exec((SKILL / "tablet-drawing.py").read_text())   # frame(), add_light(), all_lights(), the colors
+spec = importlib.util.spec_from_file_location("tablet_drawing", SKILL / "tablet-drawing.py")
+spec.loader.exec_module(drawing := importlib.util.module_from_spec(spec))   # frame(), add_light(), all_lights(), the colors
 
 FPS = 10                                          # the tablet's; a GIF keeps 100 ms a frame exact
 OUT = gifcheck.out(HERE / "{out}")   # where the GIFs go without --check
@@ -55,7 +56,7 @@ def key(n): return (n // 5, n % 5)                # tablet button number -> the 
 def lit(on):
     """{{button: (color, strength 0-1)}} -> the drawing's lights, all four of each button's"""
     L = {{}}
-    for n, (c, s) in on.items(): all_lights(L, key(n), c, s)
+    for n, (c, s) in on.items(): drawing.all_lights(L, key(n), c, s)
     return L
 
 def gif(name, fr, at=0.0):
@@ -69,7 +70,7 @@ def gif(name, fr, at=0.0):
 
 def frames(s, f): return [f(i / FPS) for i in range(round(s * FPS))]
 
-gif("starter", frames(2.0, lambda t: frame(lit({{0: (GREEN, 1.0)}}))))
+gif("starter", frames(2.0, lambda t: drawing.frame(lit({{0: (drawing.GREEN, 1.0)}}))))
 '''
 
 
