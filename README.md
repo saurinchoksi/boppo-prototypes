@@ -11,11 +11,11 @@ Boppo's [WebSocket API](https://developer.boppo.com/docs/websocket). One folder 
 | Tool | |
 |---|---|
 | [boppo-gif](.claude/skills/boppo-gif/) | A [Claude Code](https://claude.com/claude-code) skill that draws the tablet as GIFs, no tablet needed. Ask Claude for one ("buttons 4 and 5 pulse purple, twice") and it writes a short script that draws it, checks its timing, looks at its frames, and hands it to you to judge. The GIFs in [Hold, Release's design doc](https://saurinchoksi.com/boppo) are drawn with it. |
-| [The GIF studio](gif-studio.md) | Part of boppo-gif: a page for painting a light animation on a timeline and exporting the GIF, with a chat box where Claude makes versions. Works without Claude, too. |
+| [The GIF studio](gif-studio-install.md) | Part of boppo-gif: a page for painting a light animation on a timeline and exporting the GIF, with a chat box where Claude makes versions. Works without Claude, too. |
 
 To use the skill, run `claude` in a clone of this repo. It needs only
 [uv](https://docs.astral.sh/uv/), which brings its Python packages. The studio's guide,
-[gif-studio.md](gif-studio.md), starts from nothing.
+[gif-studio-install.md](gif-studio-install.md), starts from nothing.
 
 ## What you need
 
