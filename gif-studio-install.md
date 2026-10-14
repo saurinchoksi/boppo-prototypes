@@ -61,14 +61,15 @@ Update with `git pull` in `~/boppo-prototypes`.
 ## Claude (optional)
 
 Everything above works without Claude. The chat box needs Claude Code and a paid Claude plan (Pro
-or Max):
+or Max).
 
-```
-curl -fsSL https://claude.ai/install.sh | bash
-```
-
-Then restart the studio (Control-C, then the line or `uv run` again). The dot by the chat box turns green when Claude
-is on; if it says Claude is signed out, click **Sign in**, which opens your browser.
+1. Leave the studio running. In Terminal, open a new window (⌘-N).
+2. In the new window, paste this line and press Return. It ends with `Installation complete!`.
+   ```
+   curl -fsSL https://claude.ai/install.sh | bash
+   ```
+3. Reload the studio's page in your browser. By the chat box, click **Sign in**, which opens your
+   browser to sign in to Claude. The dot turns green when Claude is on.
 
 ## If something goes wrong
 
