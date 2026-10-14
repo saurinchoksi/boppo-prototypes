@@ -20,8 +20,11 @@ Pick the one that fits. They all end with the studio open in your browser.
 
 Start `claude` anywhere and paste:
 
-> Set up and start the GIF studio from https://github.com/saurinchoksi/boppo-prototypes, as its
-> gif-studio-install.md says.
+> Read https://github.com/saurinchoksi/boppo-prototypes/blob/main/gif-studio-install.md and set up
+> the GIF studio as it says.
+
+If a window asks to install Apple's "command line developer tools", click **Not Now**: the studio
+doesn't need them.
 
 Claude installs what's missing (it asks first) and opens the studio in your browser. Later, run
 `claude` in `~/boppo-prototypes` and ask for the studio, or for a GIF ("buttons 4 and 5 pulse
@@ -73,7 +76,6 @@ or Max).
 
 ## If something goes wrong
 
-- **`command not found: uv`**: quit Terminal (⌘-Q) and open it again.
 - **The page doesn't open**: go to http://127.0.0.1:8765/ in your browser.
 - **`port 8765 is taken`**: the studio is already running, likely in another Terminal window; use
   that one, or start this one on another port: add `-s -- --port 8766` after the one line's `sh`, or

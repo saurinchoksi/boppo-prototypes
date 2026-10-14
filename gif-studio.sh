@@ -42,17 +42,19 @@ main() {
     rm -rf "$tmp"
   fi
 
-  # On a Mac without Apple's developer tools, /usr/bin/python3 and install_name_tool are
-  # placeholders that pop Apple's installer when run, and uv runs both: python3 to ask its
-  # version, unless told to use only its own Pythons (UV_PYTHON_PREFERENCE), and install_name_tool,
-  # found on PATH, the first time it sets up its Python (crates/uv-python-managed/src/macos_dylib.rs
-  # in github.com/astral-sh/uv). That fix matters only for building native extensions, and the
-  # studio builds none: a stand-in that declines keeps the dialog away (uv warns, which -q hides).
+  # On a Mac without Apple's developer tools, /usr/bin/python3, install_name_tool and git are
+  # placeholders that pop Apple's installer when run. uv runs python3 to ask its version, unless
+  # told to use only its own Pythons (UV_PYTHON_PREFERENCE), and install_name_tool, found on PATH,
+  # the first time it sets up its Python (crates/uv-python-managed/src/macos_dylib.rs in
+  # github.com/astral-sh/uv), a fix that matters only for building native extensions. Claude Code
+  # runs git as it starts, for each chat request. The studio needs neither: stand-ins that decline
+  # keep the dialog away (uv warns, which -q hides; Claude Code sees no repo).
   UV_PYTHON_PREFERENCE=only-managed; export UV_PYTHON_PREFERENCE
   if ! xcode-select -p >/dev/null 2>&1; then
     stub=$HOME/.cache/boppo-gif-studio/bin
-    mkdir -p "$stub" && printf '#!/bin/sh\nexit 1\n' >"$stub/install_name_tool" && chmod +x "$stub/install_name_tool" &&
-      PATH=$stub:$PATH
+    mkdir -p "$stub" && for tool in install_name_tool git; do
+      printf '#!/bin/sh\nexit 1\n' >"$stub/$tool" && chmod +x "$stub/$tool"
+    done && PATH=$stub:$PATH
   fi
 
   command -v claude >/dev/null ||
